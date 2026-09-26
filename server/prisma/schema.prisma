@@ -6,3 +6,142 @@ datasource db {
   provider = "mysql"
   url      = env("DATABASE_URL")
 }
+
+enum Role {
+  admin
+  teacher
+  student
+}
+
+enum AccountStatus {
+  active
+  disabled
+}
+
+enum TextLanguage {
+  zh
+  en
+}
+
+enum TextStatus {
+  published
+  offline
+}
+
+enum TaskMode {
+  article
+  time
+}
+
+enum TaskStatus {
+  published
+  closed
+}
+
+enum HeartbeatStatus {
+  typing
+  paused
+  finished
+}
+
+model User {
+  id                 Int           @id @default(autoincrement())
+  username           String        @unique @db.VarChar(50)
+  passwordHash       String        @map("password_hash") @db.VarChar(100)
+  realName           String        @map("real_name") @db.VarChar(50)
+  role               Role
+  classId            Int?          @map("class_id")
+  status             AccountStatus @default(active)
+  mustChangePassword Boolean       @default(true) @map("must_change_password")
+  createdBy          Int?          @map("created_by")
+  lastLoginAt        DateTime?     @map("last_login_at")
+  createdAt          DateTime      @default(now()) @map("created_at")
+  class     Class?    @relation(fields: [classId], references: [id])
+  classes   Class[]   @relation("ClassTeacher")
+  records   Record[]
+  heartbeat Heartbeat?
+
+  @@map("users")
+}
+
+model Class {
+  id        Int      @id @default(autoincrement())
+  name      String   @db.VarChar(100)
+  teacherId Int      @map("teacher_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  teacher  User    @relation("ClassTeacher", fields: [teacherId], references: [id])
+  students User[]
+  tasks    Task[]
+
+  @@map("class")
+}
+
+model Text {
+  id         Int          @id @default(autoincrement())
+  title      String       @db.VarChar(200)
+  language   TextLanguage
+  difficulty Int
+  content    String       @db.Text
+  charCount  Int          @map("char_count")
+  createdBy  Int?         @map("created_by")
+  status     TextStatus   @default(published)
+  createdAt  DateTime     @default(now()) @map("created_at")
+  tasks Task[]
+
+  @@map("text")
+}
+
+model Task {
+  id              Int        @id @default(autoincrement())
+  classId         Int        @map("class_id")
+  textId          Int        @map("text_id")
+  title           String     @db.VarChar(200)
+  mode            TaskMode
+  durationSeconds Int?       @map("duration_seconds")
+  minSpeed        Int        @map("min_speed")
+  minAccuracy     Int        @map("min_accuracy")
+  deadline        DateTime
+  status          TaskStatus @default(published)
+  createdBy       Int        @map("created_by")
+  createdAt       DateTime   @default(now()) @map("created_at")
+  klass   Class   @relation(fields: [classId], references: [id])
+  text    Text    @relation(fields: [textId], references: [id])
+  records Record[]
+
+  @@map("task")
+}
+
+model Record {
+  id              Int       @id @default(autoincrement())
+  userId          Int       @map("user_id")
+  taskId          Int?      @map("task_id")
+  mode            TaskMode
+  speed           Decimal   @db.Decimal(6, 2)
+  accuracy        Decimal   @db.Decimal(5, 2)
+  totalChars      Int       @map("total_chars")
+  correctChars    Int       @map("correct_chars")
+  backspaceCount  Int       @map("backspace_count")
+  durationSeconds Int       @map("duration_seconds")
+  isPassed        Boolean?  @map("is_passed")
+  isSuspicious    Boolean   @default(false) @map("is_suspicious")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  user User  @relation(fields: [userId], references: [id])
+  task Task? @relation(fields: [taskId], references: [id])
+
+  @@map("record")
+}
+
+model Heartbeat {
+  userId         Int             @id @map("user_id")
+  taskId         Int?            @map("task_id")
+  status         HeartbeatStatus
+  speed          Decimal         @db.Decimal(6, 2)
+  accuracy       Decimal         @db.Decimal(5, 2)
+  progress       Decimal         @db.Decimal(5, 2)
+  elapsedSeconds Int             @map("elapsed_seconds")
+  charIndex      Int             @map("char_index")
+  updatedAt      DateTime        @updatedAt @map("updated_at")
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("heartbeat")
+}
