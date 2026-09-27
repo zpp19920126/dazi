@@ -11,5 +11,7 @@ export default defineConfig({
     globals: true,
     root: './',
     include: ['**/*.e2e-spec.ts'],
+    // 多个 e2e 文件共享同一 MySQL 库（含共享的 admin 账号），必须串行执行
+    fileParallelism: false,
   },
 });

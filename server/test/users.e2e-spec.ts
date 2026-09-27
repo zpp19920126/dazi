@@ -1,0 +1,239 @@
+import 'dotenv/config';
+import { Test } from '@nestjs/testing';
+import { INestApplication, ValidationPipe } from '@nestjs/common';
+import request from 'supertest';
+import { App } from 'supertest/types';
+import { PrismaClient } from '@prisma/client';
+import { AppModule } from './../src/app.module.js';
+
+describe('users 模块 (e2e)', () => {
+  let app: INestApplication<App>;
+  let prisma: PrismaClient;
+  let adminToken: string;
+
+  const createdUsernames: string[] = [];
+  const createdClassIds: number[] = [];
+  const suffix = String(Date.now()).slice(-6);
+
+  // 教师 A 经 API 创建（Task 3 中），记录初始密码并缓存完成强改密后的 token
+  let teacherAUser: { id: number; username: string };
+  let teacherAInitPw = '';
+  let teacherAToken = '';
+
+  beforeAll(async () => {
+    prisma = new PrismaClient();
+    const moduleRef = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
+    app = moduleRef.createNestApplication();
+    app.setGlobalPrefix('api');
+    app.useGlobalPipes(new ValidationPipe({ whitelist: true }));
+    await app.init();
+
+    const login = await request(app.getHttpServer())
+      .post('/api/auth/login')
+      .send({ username: 'admin', password: 'admin123' });
+    adminToken = login.body.data.token as string;
+
+    // admin 初始带 mustChangePassword=true，会触发业务接口强改密拦截；
+    // e2e 期间临时置 false，afterAll 还原（auth.e2e 断言其登录响应为 true）
+    await prisma.user.update({
+      where: { username: 'admin' },
+      data: { mustChangePassword: false },
+    });
+  });
+
+  afterAll(async () => {
+    await prisma.user.update({
+      where: { username: 'admin' },
+      data: { mustChangePassword: true },
+    });
+    // 删除顺序：摘除班级学生 → 删班级（class.teacher 外键 Restrict，须先于教师删除）→ 删其余用户
+    await prisma.user.deleteMany({ where: { classId: { in: createdClassIds } } });
+    await prisma.class.deleteMany({ where: { id: { in: createdClassIds } } });
+    await prisma.user.deleteMany({ where: { username: { in: createdUsernames } } });
+    await prisma.$disconnect();
+    await app.close();
+  });
+
+  /** 教师A 登录并完成强制改密，返回可调用业务接口的 token（结果缓存） */
+  async function getTeacherAToken() {
+    if (teacherAToken) return teacherAToken;
+    const login = await request(app.getHttpServer())
+      .post('/api/auth/login')
+      .send({ username: teacherAUser.username, password: teacherAInitPw });
+    expect(login.status).toBe(200);
+    const token = login.body.data.token as string;
+    const change = await request(app.getHttpServer())
+      .post('/api/auth/change-password')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ oldPassword: teacherAInitPw, newPassword: 'TeacherNew123' });
+    expect(change.status).toBe(200);
+    teacherAToken = token;
+    return token;
+  }
+
+  it('1. POST teachers 自动生成用户名连续递增，initialPassword 长度 8', async () => {
+    const res1 = await request(app.getHttpServer())
+      .post('/api/users/teachers')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ realName: `教师一${suffix}` });
+    expect(res1.status).toBe(200);
+    expect(res1.body.code).toBe(0);
+    const user1 = res1.body.data.user;
+    const pw1 = res1.body.data.initialPassword as string;
+    expect(user1.username).toMatch(/^t\d{3}$/);
+    expect(pw1).toHaveLength(8);
+    expect(user1.role).toBe('teacher');
+    expect(user1.mustChangePassword).toBe(true);
+    createdUsernames.push(user1.username);
+
+    const res2 = await request(app.getHttpServer())
+      .post('/api/users/teachers')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ realName: `教师二${suffix}` });
+    expect(res2.status).toBe(200);
+    const user2 = res2.body.data.user;
+    expect(user2.username).toMatch(/^t\d{3}$/);
+    expect(Number(user2.username.slice(1))).toBe(Number(user1.username.slice(1)) + 1);
+    createdUsernames.push(user2.username);
+  });
+
+  it('2. POST teachers 手动指定已存在 username → 409', async () => {
+    const res = await request(app.getHttpServer())
+      .post('/api/users/teachers')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ realName: `重复教师${suffix}`, username: createdUsernames[0] });
+    expect(res.status).toBe(409);
+  });
+
+  it('3. batch 3 个学生 → created 长度 3、classId 正确、每行密码独立、用户名 s 序列递增', async () => {
+    // 两名教师走 API 创建（拿到真实初始密码），班级因 Task 7 未实现直接落库
+    const tA = await request(app.getHttpServer())
+      .post('/api/users/teachers')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ realName: `教师A${suffix}` });
+    expect(tA.status).toBe(200);
+    teacherAUser = tA.body.data.user;
+    teacherAInitPw = tA.body.data.initialPassword as string;
+    createdUsernames.push(teacherAUser.username);
+
+    const tB = await request(app.getHttpServer())
+      .post('/api/users/teachers')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ realName: `教师B${suffix}` });
+    expect(tB.status).toBe(200);
+    const teacherBUser = tB.body.data.user;
+    createdUsernames.push(teacherBUser.username);
+
+    const classA = await prisma.class.create({
+      data: { name: `一班${suffix}`, teacherId: teacherAUser.id },
+    });
+    const classB = await prisma.class.create({
+      data: { name: `二班${suffix}`, teacherId: teacherBUser.id },
+    });
+    createdClassIds.push(classA.id, classB.id);
+
+    const res = await request(app.getHttpServer())
+      .post('/api/users/students/batch')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ classId: classA.id, names: ['张小一', '张小二', '张小三'] });
+    expect(res.status).toBe(200);
+    const created = res.body.data.created as Array<{
+      username: string;
+      realName: string;
+      initialPassword: string;
+    }>;
+    expect(created).toHaveLength(3);
+    expect(res.body.data.usernameStart).toBe(created[0].username);
+    for (const item of created) {
+      expect(item.username).toMatch(/^s\d{3}$/);
+      expect(item.initialPassword).toHaveLength(8);
+      const dbUser = await prisma.user.findUnique({ where: { username: item.username } });
+      expect(dbUser?.classId).toBe(classA.id);
+      expect(dbUser?.role).toBe('student');
+      createdUsernames.push(item.username);
+    }
+    expect(new Set(created.map((c) => c.initialPassword)).size).toBe(3);
+    const seqs = created.map((c) => Number(c.username.slice(1)));
+    expect(seqs[1]).toBe(seqs[0] + 1);
+    expect(seqs[2]).toBe(seqs[1] + 1);
+  });
+
+  it('4. 教师查 students 携带他人 classId → 403', async () => {
+    const token = await getTeacherAToken();
+    const classB = await prisma.class.findFirst({ where: { name: `二班${suffix}` } });
+    const res = await request(app.getHttpServer())
+      .get(`/api/users/students?classId=${classB!.id}`)
+      .set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(403);
+  });
+
+  it('4b. 教师查自己班学生 → 返回 3 名', async () => {
+    const token = await getTeacherAToken();
+    const classA = await prisma.class.findFirst({ where: { name: `一班${suffix}` } });
+    const res = await request(app.getHttpServer())
+      .get(`/api/users/students?classId=${classA!.id}`)
+      .set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(200);
+    expect(res.body.data.list).toHaveLength(3);
+  });
+
+  it('5. PATCH disable 后正确密码登录 → 401 账号已停用；enable 恢复登录', async () => {
+    const student = await prisma.user.findFirst({
+      where: { realName: '张小二', role: 'student' },
+      orderBy: { id: 'desc' },
+    });
+    expect(student).toBeTruthy();
+    // 重置为已知密码（重置后 mustChangePassword=true，不影响登录本身）
+    const reset = await request(app.getHttpServer())
+      .patch(`/api/users/${student!.id}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ action: 'reset-password', initialPassword: 'studPass12' });
+    expect(reset.status).toBe(200);
+
+    const disable = await request(app.getHttpServer())
+      .patch(`/api/users/${student!.id}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ action: 'disable' });
+    expect(disable.status).toBe(200);
+
+    const disabledLogin = await request(app.getHttpServer())
+      .post('/api/auth/login')
+      .send({ username: student!.username, password: 'studPass12' });
+    expect(disabledLogin.status).toBe(401);
+    expect(disabledLogin.body.message).toBe('账号已停用');
+
+    const enable = await request(app.getHttpServer())
+      .patch(`/api/users/${student!.id}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ action: 'enable' });
+    expect(enable.status).toBe(200);
+    const okLogin = await request(app.getHttpServer())
+      .post('/api/auth/login')
+      .send({ username: student!.username, password: 'studPass12' });
+    expect(okLogin.status).toBe(200);
+  });
+
+  it('6. delete 有关联班级的教师 → 409；无关联 → 200 且记录消失', async () => {
+    const delA = await request(app.getHttpServer())
+      .patch(`/api/users/${teacherAUser.id}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ action: 'delete' });
+    expect(delA.status).toBe(409);
+
+    const tmp = await request(app.getHttpServer())
+      .post('/api/users/teachers')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ realName: `无班级教师${suffix}` });
+    const tmpUser = tmp.body.data.user;
+    createdUsernames.push(tmpUser.username);
+    const delB = await request(app.getHttpServer())
+      .patch(`/api/users/${tmpUser.id}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ action: 'delete' });
+    expect(delB.status).toBe(200);
+    const gone = await prisma.user.findUnique({ where: { id: tmpUser.id } });
+    expect(gone).toBeNull();
+  });
+});
