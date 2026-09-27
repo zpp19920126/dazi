@@ -9,11 +9,18 @@ import { RolesGuard } from './auth/guards/roles.guard.js';
 import { MustChangePasswordGuard } from './auth/guards/must-change-password.guard.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { UsersModule } from './users/users.module.js';
+import { ClassesModule } from './classes/classes.module.js';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor.js';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter.js';
 
 @Module({
-  imports: [ConfigModule.forRoot({ isGlobal: true }), PrismaModule, AuthModule, UsersModule],
+  imports: [
+    ConfigModule.forRoot({ isGlobal: true }),
+    PrismaModule,
+    AuthModule,
+    UsersModule,
+    ClassesModule,
+  ],
   controllers: [AppController],
   providers: [
     AppService,
