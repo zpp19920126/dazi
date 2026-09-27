@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma, User } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { BatchStudentsDto } from './dto/batch-students.dto.js';
@@ -56,7 +56,7 @@ export class UsersService {
     }
     const username = dto.username ?? (await this.nextUsername('t'));
     const initialPassword = generatePassword();
-    let user: Prisma.User;
+    let user: User;
     try {
       user = await this.prisma.user.create({
         data: {
@@ -203,7 +203,7 @@ export class UsersService {
   }
 
   /** 输出视图对象，剥离 passwordHash */
-  private toVo(user: Prisma.User) {
+  private toVo(user: User) {
     return {
       id: user.id,
       username: user.username,

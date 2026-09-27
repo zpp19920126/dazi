@@ -1,14 +1,14 @@
 import 'dotenv/config';
+import type { Server } from 'http';
 import { Test } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import request from 'supertest';
-import { App } from 'supertest/types';
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { AppModule } from './../src/app.module.js';
 
 describe('认证模块 (e2e)', () => {
-  let app: INestApplication<App>;
+  let app: INestApplication;
   let prisma: PrismaClient;
 
   const testUsernames = ['test_disabled_1', 'test_student_1', 'test_cp_1'];
@@ -17,6 +17,16 @@ describe('认证模块 (e2e)', () => {
     prisma = new PrismaClient();
     await prisma.user.deleteMany({ where: { username: { in: testUsernames } } });
 
+    // e2e 自恢复：admin 凭据强制重置为已知值，避免外部环境改动导致登录失败
+    await prisma.user.update({
+      where: { username: 'admin' },
+      data: {
+        passwordHash: bcrypt.hashSync('admin123', 10),
+        status: 'active',
+        mustChangePassword: true,
+      },
+    });
+
     const moduleRef = await Test.createTestingModule({
       imports: [AppModule],
     }).compile();
@@ -24,6 +34,19 @@ describe('认证模块 (e2e)', () => {
     app.setGlobalPrefix('api');
     app.useGlobalPipes(new ValidationPipe({ whitelist: true }));
     await app.init();
+
+    // supertest 7 对未监听的 server 会自动 listen 并在请求后自动 close，
+    // close 与下一请求 re-listen 之间存在竞态（偶发 ECONNREFUSED）。
+    // 显式监听一次，让 supertest 走"已监听"路径，全程复用同一端口。
+    await new Promise<void>((resolve, reject) => {
+      const server = app.getHttpServer() as Server;
+      const onError = (err: Error) => reject(err);
+      server.once('error', onError);
+      server.listen(0, '127.0.0.1', () => {
+        server.removeListener('error', onError);
+        resolve();
+      });
+    });
   });
 
   afterAll(async () => {

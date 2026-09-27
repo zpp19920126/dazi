@@ -1,13 +1,14 @@
 import 'dotenv/config';
+import type { Server } from 'http';
 import { Test } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import request from 'supertest';
-import { App } from 'supertest/types';
 import { PrismaClient } from '@prisma/client';
+import bcrypt from 'bcryptjs';
 import { AppModule } from './../src/app.module.js';
 
 describe('texts 模块 (e2e)', () => {
-  let app: INestApplication<App>;
+  let app: INestApplication;
   let prisma: PrismaClient;
   let adminToken: string;
 
@@ -50,17 +51,33 @@ describe('texts 模块 (e2e)', () => {
     app.useGlobalPipes(new ValidationPipe({ whitelist: true }));
     await app.init();
 
+    // supertest 7 对未监听的 server 会自动 listen 并在请求后自动 close，
+    // close 与下一请求 re-listen 之间存在竞态（偶发 ECONNREFUSED）。
+    // 显式监听一次，让 supertest 走"已监听"路径，全程复用同一端口。
+    await new Promise<void>((resolve, reject) => {
+      const server = app.getHttpServer() as Server;
+      const onError = (err: Error) => reject(err);
+      server.once('error', onError);
+      server.listen(0, '127.0.0.1', () => {
+        server.removeListener('error', onError);
+        resolve();
+      });
+    });
+
+    // e2e 自恢复：admin 凭据强制重置为已知值（外部环境可能改动过）；
+    // 业务接口需过强改密守卫，临时置 false，afterAll 还原
+    await prisma.user.update({
+      where: { username: 'admin' },
+      data: {
+        passwordHash: bcrypt.hashSync('admin123', 10),
+        status: 'active',
+        mustChangePassword: false,
+      },
+    });
     const login = await request(app.getHttpServer())
       .post('/api/auth/login')
       .send({ username: 'admin', password: 'admin123' });
     adminToken = login.body.data.token as string;
-
-    // admin 初始带 mustChangePassword=true，会触发业务接口强改密拦截；
-    // e2e 期间临时置 false，afterAll 还原（auth.e2e 断言其登录响应为 true）
-    await prisma.user.update({
-      where: { username: 'admin' },
-      data: { mustChangePassword: false },
-    });
 
     // 经 API 创建两名教师（拿真实初始密码）
     const tA = await request(app.getHttpServer())
