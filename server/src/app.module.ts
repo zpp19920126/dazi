@@ -12,6 +12,7 @@ import { UsersModule } from './users/users.module.js';
 import { ClassesModule } from './classes/classes.module.js';
 import { TextsModule } from './texts/texts.module.js';
 import { TasksModule } from './tasks/tasks.module.js';
+import { RecordsModule } from './records/records.module.js';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor.js';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter.js';
 
@@ -24,6 +25,7 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter.js';
     ClassesModule,
     TextsModule,
     TasksModule,
+    RecordsModule,
   ],
   controllers: [AppController],
   providers: [
