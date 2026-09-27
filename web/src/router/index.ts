@@ -1,5 +1,5 @@
 import { createRouter, createWebHistory, type RouterHistory, type RouteRecordRaw } from 'vue-router'
-import { useAuthStore, type Role } from '@/stores/auth'
+import { useAuthStore, roleHome, type Role } from '@/stores/auth'
 import AdminLayout from '@/layouts/AdminLayout.vue'
 import StudentLayout from '@/layouts/StudentLayout.vue'
 import TeacherLayout from '@/layouts/TeacherLayout.vue'
@@ -7,12 +7,8 @@ import ChangePasswordView from '@/views/ChangePassword.vue'
 import LoginView from '@/views/Login.vue'
 import Placeholder from '@/views/Placeholder.vue'
 
-/** 各角色登录后的首页 */
-export const roleHome: Record<Role, string> = {
-  student: '/student/tasks',
-  teacher: '/teacher/dashboard',
-  admin: '/admin/overview',
-}
+// roleHome 真身在 stores/auth.ts（避免页面组件反向依赖 router 形成循环初始化），此处保持既有导出位置兼容
+export { roleHome }
 
 // 路由表：登录/改密 + 学生/教师/超管三端布局壳（子页面均为占位，由后续任务替换）
 export const routes: RouteRecordRaw[] = [
@@ -141,14 +137,24 @@ export const routes: RouteRecordRaw[] = [
 export function createAppRouter(history: RouterHistory = createWebHistory()) {
   const router = createRouter({ history, routes })
 
-  // 全局守卫：未登录 → /login；角色不匹配 → 跳对应端首页
+  // 全局守卫：未登录 → /login；强制改密 → 只能去 /change-password；角色不匹配 → 跳对应端首页
   router.beforeEach((to) => {
     const auth = useAuthStore()
     if (!auth.isLoggedIn) {
       return to.path === '/login' ? true : '/login'
     }
+    const user = auth.user
+    const mustChange = user?.mustChangePassword === true
+    // 已登录访问 /login：无需改密 → 回角色首页；仍需改密 → 留在登录页（允许切换账号重新登录）
+    if (to.path === '/login') {
+      return mustChange || !user ? true : roleHome[user.role]
+    }
+    // 首次登录强制改密：除改密页外一律拦截
+    if (mustChange && to.path !== '/change-password') {
+      return '/change-password'
+    }
     const roles = to.meta.roles as Role[] | undefined
-    const role = auth.user?.role
+    const role = user?.role
     if (roles && role && !roles.includes(role)) {
       return roleHome[role]
     }

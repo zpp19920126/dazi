@@ -20,5 +20,12 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     globals: true,
+    // 将 element-plus 内联进测试转换管线：externalize 时其内部对 async-validator 的
+    // CJS interop 在 Node 直载下异常，导致 el-form 的 validate() 失败被吞、恒 resolve true
+    server: {
+      deps: {
+        inline: ['element-plus'],
+      },
+    },
   },
 })
