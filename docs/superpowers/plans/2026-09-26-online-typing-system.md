@@ -675,9 +675,9 @@ PinyinBar：自定义拼音候选条组件（输入字母序列显示候选汉�
 
 **Interfaces:** Consumes: texts 模块（教师视角）、tasks 三端点
 
-- [ ] **Step 1: 实现**——MyTexts：仅本人文章列表（`source=custom`）+ 新建/编辑弹窗（title/language/difficulty/content，实时字符数）；TaskList：发布弹窗（选文章下拉=GET texts、模式切换显隐时长、达标线数字输入、截止日期时间选择器）+ 列表含完成率进度条 + 提前截止按钮；time 模式必填时长前端校验
-- [ ] **Step 2: 冒烟测试**：TaskCreate 表单 time 模式未填时长时提交被拦截（实际编写）
-- [ ] **Step 3: 提交** `git commit -m "feat: 教师端(自建文章/任务发布与管理)"`
+- [x] **Step 1: 实现**——MyTexts：仅本人文章列表（`source=custom`）+ 新建/编辑弹窗（title/language/difficulty/content，实时字符数）；TaskList：发布弹窗（选文章下拉=GET texts、模式切换显隐时长、达标线数字输入、截止日期时间选择器）+ 列表含完成率进度条 + 提前截止按钮；time 模式必填时长前端校验
+- [x] **Step 2: 冒烟测试**：TaskCreate 表单 time 模式未填时长时提交被拦截（实际编写）
+- [x] **Step 3: 提交** `git commit -m "feat: 教师端(自建文章/任务发布与管理)"`
 
 ### Task 16: 教师端实时看板 + 成绩查询 + 超管端三页
 

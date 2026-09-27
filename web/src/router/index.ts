@@ -13,6 +13,8 @@ import ProfileView from '@/views/student/Profile.vue'
 import TeacherDashboardView from '@/views/teacher/Dashboard.vue'
 import TeacherClassListView from '@/views/teacher/ClassList.vue'
 import TeacherStudentListView from '@/views/teacher/StudentList.vue'
+import TeacherMyTextsView from '@/views/teacher/MyTexts.vue'
+import TeacherTaskListView from '@/views/teacher/TaskList.vue'
 
 // roleHome 真身在 stores/auth.ts（避免页面组件反向依赖 router 形成循环初始化），此处保持既有导出位置兼容
 export { roleHome }
@@ -85,13 +87,13 @@ export const routes: RouteRecordRaw[] = [
       {
         path: 'texts',
         name: 'teacher-texts',
-        component: Placeholder,
+        component: TeacherMyTextsView,
         meta: { roles: ['teacher'], title: '自建文章' },
       },
       {
         path: 'tasks',
         name: 'teacher-tasks',
-        component: Placeholder,
+        component: TeacherTaskListView,
         meta: { roles: ['teacher'], title: '任务管理' },
       },
       {
