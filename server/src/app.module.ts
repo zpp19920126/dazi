@@ -10,6 +10,7 @@ import { MustChangePasswordGuard } from './auth/guards/must-change-password.guar
 import { PrismaModule } from './prisma/prisma.module.js';
 import { UsersModule } from './users/users.module.js';
 import { ClassesModule } from './classes/classes.module.js';
+import { TextsModule } from './texts/texts.module.js';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor.js';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter.js';
 
@@ -20,6 +21,7 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter.js';
     AuthModule,
     UsersModule,
     ClassesModule,
+    TextsModule,
   ],
   controllers: [AppController],
   providers: [
