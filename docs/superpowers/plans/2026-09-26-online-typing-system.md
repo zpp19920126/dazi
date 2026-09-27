@@ -665,9 +665,9 @@ PinyinBar：自定义拼音候选条组件（输入字母序列显示候选汉�
 
 **Interfaces:** Consumes: `GET /api/stats/teacher-dashboard`、classes 四端点、users 的 students 端点、`POST /api/users/students/batch`、`PATCH /api/users/:id`
 
-- [ ] **Step 1: 实现**——Dashboard 四张统计卡；ClassList 表格 + 新建/重命名弹窗 + 删除（409 时 ElMessage 提示文案）；StudentList 核心为**批量生成弹窗**：textarea 每行一个姓名 → POST batch → 结果表格（用户名/姓名/初始密码）+「一键复制全部」按钮（navigator.clipboard）
-- [ ] **Step 2: 冒烟测试**：StudentList 批量弹窗提交后表格渲染行数 === created.length（mock axios）
-- [ ] **Step 3: 提交** `git commit -m "feat: 教师端(工作台/班级/学生批量生成)"`
+- [x] **Step 1: 实现**——Dashboard 四张统计卡；ClassList 表格 + 新建/重命名弹窗 + 删除（409 时 ElMessage 提示文案）；StudentList 核心为**批量生成弹窗**：textarea 每行一个姓名 → POST batch → 结果表格（用户名/姓名/初始密码）+「一键复制全部」按钮（navigator.clipboard）（补实现后端 `stats` 模块：teacher-dashboard 端点）
+- [x] **Step 2: 冒烟测试**：StudentList 批量弹窗提交后表格渲染行数 === created.length（mock axios）
+- [x] **Step 3: 提交** `git commit -m "feat: 教师端(工作台/班级/学生批量生成)"`
 
 ### Task 15: 教师端自建文章库 + 任务管理
 

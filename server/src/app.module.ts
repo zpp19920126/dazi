@@ -14,6 +14,7 @@ import { TextsModule } from './texts/texts.module.js';
 import { TasksModule } from './tasks/tasks.module.js';
 import { RecordsModule } from './records/records.module.js';
 import { HeartbeatsModule } from './heartbeats/heartbeats.module.js';
+import { StatsModule } from './stats/stats.module.js';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor.js';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter.js';
 
@@ -28,6 +29,7 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter.js';
     TasksModule,
     RecordsModule,
     HeartbeatsModule,
+    StatsModule,
   ],
   controllers: [AppController],
   providers: [
