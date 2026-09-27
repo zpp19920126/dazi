@@ -47,6 +47,10 @@ const activeMenu = computed(
 </template>
 
 <style scoped>
+.layout {
+  height: 100%;
+}
+
 .aside {
   display: flex;
   flex-direction: column;
