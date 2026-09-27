@@ -117,6 +117,14 @@ describe('认证模块 (e2e)', () => {
       .send({ oldPassword: 'wrong-old', newPassword: 'newpass456' });
     expect(bad.status).toBe(400);
 
+    // 新旧密码相同 → 400
+    const same = await request(app.getHttpServer())
+      .post('/api/auth/change-password')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ oldPassword: 'oldpass123', newPassword: 'oldpass123' });
+    expect(same.status).toBe(400);
+    expect(same.body.message).toBe('新密码不能与旧密码相同');
+
     // 正确改密 → 200
     const ok = await request(app.getHttpServer())
       .post('/api/auth/change-password')

@@ -22,7 +22,14 @@ export interface UserInfo {
 
 function loadUser(): UserInfo | null {
   const raw = localStorage.getItem(USER_KEY)
-  return raw ? (JSON.parse(raw) as UserInfo) : null
+  if (!raw) return null
+  try {
+    return JSON.parse(raw) as UserInfo
+  } catch {
+    // localStorage 数据损坏时清掉脏数据兜底，避免 store 初始化抛错导致应用白屏
+    localStorage.removeItem(USER_KEY)
+    return null
+  }
 }
 
 export const useAuthStore = defineStore('auth', {

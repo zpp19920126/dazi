@@ -64,11 +64,20 @@ const validateConfirm = (_rule: FormItemRule, value: string, callback: (error?: 
   }
 }
 
+const validateNotSameAsOld = (_rule: FormItemRule, value: string, callback: (error?: Error) => void) => {
+  if (form.oldPassword && value === form.oldPassword) {
+    callback(new Error('新密码不能与旧密码相同'))
+  } else {
+    callback()
+  }
+}
+
 const rules: FormRules = {
   oldPassword: [{ required: true, message: '请输入旧密码', trigger: 'blur' }],
   newPassword: [
     { required: true, message: '请输入新密码', trigger: 'blur' },
     { min: 6, message: '新密码至少 6 位', trigger: 'blur' },
+    { validator: validateNotSameAsOld, trigger: 'blur' },
   ],
   confirmPassword: [
     { required: true, message: '请再次输入新密码', trigger: 'blur' },

@@ -37,6 +37,9 @@ export class AuthService {
     if (!user || !(await bcrypt.compare(dto.oldPassword, user.passwordHash))) {
       throw new BadRequestException('旧密码不正确');
     }
+    if (dto.newPassword === dto.oldPassword) {
+      throw new BadRequestException('新密码不能与旧密码相同');
+    }
     const passwordHash = await bcrypt.hash(dto.newPassword, 10);
     await this.prisma.user.update({
       where: { id: userId },

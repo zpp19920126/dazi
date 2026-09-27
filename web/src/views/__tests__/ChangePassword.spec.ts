@@ -75,6 +75,12 @@ describe('ChangePassword.vue', () => {
     expect(postMock).not.toHaveBeenCalled()
   })
 
+  it('新密码与旧密码相同时不发送请求', async () => {
+    const wrapper = await mountPage()
+    await fillAndSubmit(wrapper, ['old123', 'old123', 'old123'])
+    expect(postMock).not.toHaveBeenCalled()
+  })
+
   it('修改成功 → 请求参数正确、清除 store 强制改密标记并持久化、跳角色首页', async () => {
     const wrapper = await mountPage()
     await fillAndSubmit(wrapper, ['old123', 'newpass123', 'newpass123'])

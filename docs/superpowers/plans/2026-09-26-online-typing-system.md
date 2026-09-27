@@ -394,6 +394,8 @@ cd web && npm i && npm i element-plus axios pinia vue-router && npm i -D vitest 
 
 ## Phase 1 · 账号与组织（Task 6–8）
 
+> 【P0 审查遗留】mustChangePassword 目前仅前端路由守卫强制；服务端 `JwtStrategy.validate()` 已透传 `mustChangePassword` 字段，本阶段实现业务接口时需在受保护业务接口统一拦截"未完成强制改密的请求"（仅放行改密接口）。
+
 ### Task 6: users 模块（教师管理 / 学生批量生成 / 统一 PATCH）
 
 **Files:**
