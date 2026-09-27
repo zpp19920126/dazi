@@ -169,5 +169,5 @@ export function useTypingEngine(opts: TypingEngineOptions) {
     onUnmounted(stopTick);
   }
 
-  return { stats, handleCompositionEnd, handleKeydown, reset };
+  return { stats, typed, handleCompositionEnd, handleKeydown, reset };
 }

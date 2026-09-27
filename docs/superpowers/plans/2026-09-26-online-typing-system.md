@@ -543,7 +543,7 @@ export function useTypingEngine(opts: TypingEngineOptions): {
 }
 ```
 
-- [ ] **Step 1: 写失败测试（Vitest，完整用例）**
+- [x] **Step 1: 写失败测试（Vitest，完整用例）**
 
 ```typescript
 import { describe, it, expect, vi } from 'vitest';
@@ -615,13 +615,13 @@ describe('useTypingEngine', () => {
 });
 ```
 
-- [ ] **Step 2: `npx vitest run` 确认 FAIL**
+- [x] **Step 2: `npx vitest run` 确认 FAIL**
 
-- [ ] **Step 3: 最小实现**
+- [x] **Step 3: 最小实现**
 
 要点：内部维护 `typed: string`；`handleKeydown` 中 `e.key === 'Backspace'` 回退并 `backspaceCount++`；`composing` 标志在 keydown 时直接 return（IME 拼音期间）；`handleCompositionEnd` 追加 `e.data`；每次变更重算 correctChars（逐字符与 target 比对）、speed（elapsedMs 起点为首字符时刻，用 `Date.now()`，可被 fake timers 控制）、accuracy；`setInterval(100)` 驱动 elapsedMs 与 time 模式倒计时；`finished` 后忽略后续输入。
 
-- [ ] **Step 4: `npx vitest run` PASS** → **Step 5: 提交** `git commit -m "feat: 打字引擎composable(中英文统计/倒计时/达标口径)"`
+- [x] **Step 4: `npx vitest run` PASS** → **Step 5: 提交** `git commit -m "feat: 打字引擎composable(中英文统计/倒计时/达标口径)"`
 
 ---
 
@@ -634,9 +634,9 @@ describe('useTypingEngine', () => {
 **Interfaces:**
 - Consumes: `GET /api/tasks`、`GET /api/texts/:id`、`POST /api/records`、`GET /api/records/mine`、`POST /api/heartbeats`、Task 12 引擎签名
 
-- [ ] **Step 1: useHeartbeat 失败测试**：`useHeartbeat(payloadRef)` 每 20s 调一次 POST（fake timers 验证 2 次调用）；`stop()` 清除；`document.visibilityState === 'hidden'` 时 payload.status 变 `paused`（导出 `onTick` 供测试触发）
-- [ ] **Step 2: 实现 useHeartbeat**（setInterval 20000 + onBeforeUnmount 清理）
-- [ ] **Step 3: 打字练习页实现（关键逻辑）**
+- [x] **Step 1: useHeartbeat 失败测试**：`useHeartbeat(payloadRef)` 每 20s 调一次 POST（fake timers 验证 2 次调用）；`stop()` 清除；`document.visibilityState === 'hidden'` 时 payload.status 变 `paused`（导出 `onTick` 供测试触发）
+- [x] **Step 2: 实现 useHeartbeat**（setInterval 20000 + onBeforeUnmount 清理）
+- [x] **Step 3: 打字练习页实现（关键逻辑）**
 
 ```
 进入 → GET /api/texts/:id 取全文 → 初始化引擎
@@ -649,9 +649,9 @@ PinyinBar：自定义拼音候选条组件（输入字母序列显示候选汉�
 防作弊：@paste.prevent、input 上 autocomplete=off；页面 blur → status=paused
 ```
 
-- [ ] **Step 4: 页面冒烟测试**：Typing.vue 挂载后渲染文章字符 span 数量 === target 长度；MyTasks.vue mock GET /api/tasks 后渲染卡片数 === list.length（实际编写）
-- [ ] **Step 5: 手动联调**：学生账号完成一次英文任务交卷，教师端 grades 出现记录
-- [ ] **Step 6: 提交** `git commit -m "feat: 学生端四页(任务/打字练习/成绩/个人中心)"`
+- [x] **Step 4: 页面冒烟测试**：Typing.vue 挂载后渲染文章字符 span 数量 === target 长度；MyTasks.vue mock GET /api/tasks 后渲染卡片数 === list.length（实际编写）
+- [x] **Step 5: 手动联调**：学生账号完成一次英文任务交卷，教师端 grades 出现记录
+- [x] **Step 6: 提交** `git commit -m "feat: 学生端四页(任务/打字练习/成绩/个人中心)"`
 
 ---
 

@@ -6,6 +6,10 @@ import TeacherLayout from '@/layouts/TeacherLayout.vue'
 import ChangePasswordView from '@/views/ChangePassword.vue'
 import LoginView from '@/views/Login.vue'
 import Placeholder from '@/views/Placeholder.vue'
+import MyTasksView from '@/views/student/MyTasks.vue'
+import TypingView from '@/views/student/Typing.vue'
+import MyRecordsView from '@/views/student/MyRecords.vue'
+import ProfileView from '@/views/student/Profile.vue'
 
 // roleHome 真身在 stores/auth.ts（避免页面组件反向依赖 router 形成循环初始化），此处保持既有导出位置兼容
 export { roleHome }
@@ -28,25 +32,25 @@ export const routes: RouteRecordRaw[] = [
       {
         path: 'tasks',
         name: 'student-tasks',
-        component: Placeholder,
+        component: MyTasksView,
         meta: { roles: ['student'], title: '我的任务' },
       },
       {
         path: 'typing/:taskId?',
         name: 'student-typing',
-        component: Placeholder,
+        component: TypingView,
         meta: { roles: ['student'], title: '打字练习' },
       },
       {
         path: 'records',
         name: 'student-records',
-        component: Placeholder,
+        component: MyRecordsView,
         meta: { roles: ['student'], title: '我的成绩' },
       },
       {
         path: 'profile',
         name: 'student-profile',
-        component: Placeholder,
+        component: ProfileView,
         meta: { roles: ['student'], title: '个人中心' },
       },
     ],
