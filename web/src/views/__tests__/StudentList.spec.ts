@@ -122,4 +122,47 @@ describe('StudentList.vue 教师学生账号页', () => {
     ])
     wrapper.unmount()
   })
+
+  it('学生列表页导出按钮导出当前班级学生(账号/姓名/初始密码,改密显示已改密)', async () => {
+    const withPw = [
+      { ...students[0]!, initialPassword: 'Xy#45678' },
+      {
+        id: 102,
+        username: 's002',
+        realName: '李四',
+        status: 'active',
+        mustChangePassword: false,
+        lastLoginAt: null,
+        createdAt: '2026-09-01T00:00:00.000Z',
+        initialPassword: null,
+      },
+    ]
+    getMock
+      .mockResolvedValueOnce({ list: classes, total: 2 })
+      .mockResolvedValueOnce({ list: withPw })
+    const wrapper = mount(StudentList, { global: { plugins: [createPinia(), ElementPlus] } })
+    await flushPromises()
+
+    const createObjectURL = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:mock-url')
+    const revokeObjectURL = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {})
+
+    await wrapper.find('[data-testid="export-list-btn"]').trigger('click')
+    await flushPromises()
+
+    expect(createObjectURL).toHaveBeenCalledTimes(1)
+    const blob = createObjectURL.mock.calls[0]![0] as Blob
+    expect(blob.type).toBe(
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    )
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:mock-url')
+
+    const buf = await blob.arrayBuffer()
+    const wb = XLSX.read(buf, { type: 'array' })
+    const rows = XLSX.utils.sheet_to_json<Record<string, string>>(wb.Sheets[wb.SheetNames[0]!])
+    expect(rows).toEqual([
+      { 学生账号: 's001', 姓名: '张三', 初始密码: 'Xy#45678' },
+      { 学生账号: 's002', 姓名: '李四', 初始密码: '（已改密）' },
+    ])
+    wrapper.unmount()
+  })
 })

@@ -93,6 +93,7 @@ export class UsersService {
         realName: true,
         status: true,
         mustChangePassword: true,
+        initialPassword: true,
         lastLoginAt: true,
         createdAt: true,
       },
@@ -121,6 +122,8 @@ export class UsersService {
             data: {
               username,
               passwordHash: await bcrypt.hash(initialPassword, 10),
+              // 持久化初始密码供教师事后补导出；学生改密后由 auth.changePassword 清除
+              initialPassword,
               realName: dto.names[i],
               role: 'student',
               classId: dto.classId,
@@ -154,6 +157,7 @@ export class UsersService {
           where: { id },
           data: {
             passwordHash: await bcrypt.hash(initialPassword, 10),
+            initialPassword,
             mustChangePassword: true,
           },
         });

@@ -16,6 +16,7 @@ interface StudentItem {
   realName: string
   status: 'active' | 'disabled'
   mustChangePassword: boolean
+  initialPassword: string | null
   lastLoginAt: string | null
   createdAt: string
 }
@@ -97,13 +98,10 @@ async function copyAll() {
   ElMessage.success('已复制全部账号与初始密码')
 }
 
-// 导出 xlsx：初始密码仅批量生成时可见，导出供教师留存
-function exportExcel() {
-  const ws = XLSX.utils.aoa_to_sheet([
-    ['学生账号', '姓名', '初始密码'],
-    ...batchResult.value.map((r) => [r.username, r.realName, r.initialPassword]),
-  ])
-  ws['!cols'] = [{ wch: 12 }, { wch: 16 }, { wch: 16 }]
+// 生成 xlsx 并触发浏览器下载（弹窗导出与学生列表导出共用）
+function downloadXlsx(aoa: string[][], filename: string) {
+  const ws = XLSX.utils.aoa_to_sheet(aoa)
+  ws['!cols'] = aoa[0]!.map(() => ({ wch: 16 }))
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, ws, '学生账号')
   const data = XLSX.write(wb, { bookType: 'xlsx', type: 'array' }) as ArrayBuffer
@@ -113,9 +111,37 @@ function exportExcel() {
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = `学生账号_${new Date().toISOString().slice(0, 10)}.xlsx`
+  a.download = filename
   a.click()
   URL.revokeObjectURL(url)
+}
+
+// 弹窗内导出本次批量生成的账号与初始密码
+function exportExcel() {
+  downloadXlsx(
+    [
+      ['学生账号', '姓名', '初始密码'],
+      ...batchResult.value.map((r) => [r.username, r.realName, r.initialPassword]),
+    ],
+    `学生账号_${new Date().toISOString().slice(0, 10)}.xlsx`,
+  )
+  ElMessage.success('已导出 Excel')
+}
+
+// 学生列表导出：账号/姓名/初始密码（改密后为空则显示已改密），便于事后补导出
+function exportListExcel() {
+  const className = classes.value.find((c) => c.id === classId.value)?.name ?? ''
+  downloadXlsx(
+    [
+      ['学生账号', '姓名', '初始密码'],
+      ...students.value.map((s) => [
+        s.username,
+        s.realName,
+        s.initialPassword ?? '（已改密）',
+      ]),
+    ],
+    `学生账号_${className}_${new Date().toISOString().slice(0, 10)}.xlsx`,
+  )
   ElMessage.success('已导出 Excel')
 }
 
@@ -148,6 +174,9 @@ function fmtTime(s?: string | null): string {
         @click="openBatch"
       >
         批量生成学生
+      </el-button>
+      <el-button data-testid="export-list-btn" :disabled="classId === null" @click="exportListExcel">
+        导出Excel
       </el-button>
     </div>
 

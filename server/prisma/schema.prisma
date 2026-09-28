@@ -53,6 +53,8 @@ model User {
   classId            Int?          @map("class_id")
   status             AccountStatus @default(active)
   mustChangePassword Boolean       @default(true) @map("must_change_password")
+  // 批量生成/重置密码时的初始密码明文，供教师事后补导出；学生完成改密即清除
+  initialPassword   String?       @map("initial_password") @db.VarChar(20)
   createdBy          Int?          @map("created_by")
   lastLoginAt        DateTime?     @map("last_login_at")
   createdAt          DateTime      @default(now()) @map("created_at")
