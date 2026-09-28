@@ -688,10 +688,10 @@ PinyinBar：自定义拼音候选条组件（输入字母序列显示候选汉�
 
 **Interfaces:** Consumes: `GET /api/classes/:id/live`、`GET /api/tasks/:id/grades`、users/texts/stats admin 端点
 
-- [ ] **Step 1: 实现**——LiveBoard：30s `setInterval` 轮询 live 端点 + 组件卸载清理；学生卡片网格：姓名 + 状态徽章（typing→打字中/绿、paused→暂停/橙、finished→已完成/灰、`online=false`→离线/灰）+ 实时速度、准确率、进度条；Grades：选择任务 → 成绩表（含可疑行 danger 高亮）+ 达标/可疑筛选 + `导出CSV` 按钮直接 `window.open('/api/tasks/:id/grades?export=csv')`（带 token 不可用 open → 改为 axios blob 下载，代码给出：`const blob = await request.get(url, { responseType: 'blob' })` + URL.createObjectURL 触发下载）
-- [ ] **Step 2: Admin 三页**——TeacherAccounts（列表/新建弹窗展示初始密码+「复制」/重置/停用/删除含 409 处理）；AllTexts（tabs 全部/中文/英文/内置/教师自建 + 下架/恢复按钮仅 status 切换）；Overview（GET admin-overview 渲染统计卡 + 服务状态块）
+- [x] **Step 1: 实现**——LiveBoard：30s `setInterval` 轮询 live 端点 + 组件卸载清理；学生卡片网格：姓名 + 状态徽章（typing→打字中/绿、paused→暂停/橙、finished→已完成/灰、`online=false`→离线/灰）+ 实时速度、准确率、进度条；Grades：选择任务 → 成绩表（含可疑行 danger 高亮）+ 达标/可疑筛选 + `导出CSV` 按钮直接 `window.open('/api/tasks/:id/grades?export=csv')`（带 token 不可用 open → 改为 axios blob 下载，代码给出：`const blob = await request.get(url, { responseType: 'blob' })` + URL.createObjectURL 触发下载）
+- [x] **Step 2: Admin 三页**——TeacherAccounts（列表/新建弹窗展示初始密码+「复制」/重置/停用/删除含 409 处理）；AllTexts（tabs 全部/中文/英文/内置/教师自建 + 下架/恢复按钮仅 status 切换）；Overview（GET admin-overview 渲染统计卡 + 服务状态块）
 - [ ] **Step 3: 手动全流程验收**：admin 建教师 → 教师登录建班批量生成学生 → 学生登录做任务 → 教师看板看到实时状态 → 交卷后成绩单/CSV 可导出
-- [ ] **Step 4: 提交** `git commit -m "feat: 实时看板/成绩导出/超管三页"`
+- [x] **Step 4: 提交** `git commit -m "feat: 实时看板/成绩导出/超管三页"`
 
 ---
 
