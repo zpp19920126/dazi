@@ -25,6 +25,8 @@ export { roleHome }
 
 // 路由表：登录/改密 + 学生/教师/超管三端布局壳
 export const routes: RouteRecordRaw[] = [
+  // 根路径兜底：未登录由守卫送往 /login，已登录经 /login 守卫弹到对应角色首页
+  { path: '/', redirect: '/login' },
   { path: '/login', name: 'login', component: LoginView, meta: { title: '登录' } },
   {
     path: '/change-password',

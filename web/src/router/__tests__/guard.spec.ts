@@ -37,6 +37,19 @@ describe('路由守卫', () => {
     expect(router.currentRoute.value.path).toBe('/login')
   })
 
+  it('未登录访问根路径 / → 重定向 /login', async () => {
+    const router = createAppRouter(createMemoryHistory())
+    await router.push('/')
+    expect(router.currentRoute.value.path).toBe('/login')
+  })
+
+  it('已登录访问根路径 / → 跳角色首页', async () => {
+    loginAs()
+    const router = createAppRouter(createMemoryHistory())
+    await router.push('/')
+    expect(router.currentRoute.value.path).toBe('/student/tasks')
+  })
+
   it('学生角色访问超管页 → 跳学生端首页 /student/tasks', async () => {
     loginAs()
     const router = createAppRouter(createMemoryHistory())
