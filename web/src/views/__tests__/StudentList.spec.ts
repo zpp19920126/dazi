@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia } from 'pinia'
 import ElementPlus from 'element-plus'
+import * as XLSX from 'xlsx'
 
 const getMock = vi.hoisted(() => vi.fn())
 const postMock = vi.hoisted(() => vi.fn())
@@ -72,6 +73,53 @@ describe('StudentList.vue 教师学生账号页', () => {
     expect(wrapper.findAll('[data-testid="batch-result-table"] .el-table__row')).toHaveLength(2)
     // 提交成功后重新拉取学生列表
     expect(getMock).toHaveBeenCalledTimes(3)
+    wrapper.unmount()
+  })
+
+  it('点击导出按钮生成 xlsx Blob 触发下载，内容含学生账号/姓名/初始密码', async () => {
+    getMock
+      .mockResolvedValueOnce({ list: classes, total: 2 })
+      .mockResolvedValueOnce({ list: students })
+      .mockResolvedValueOnce({ list: students })
+    postMock.mockResolvedValue({
+      created: [
+        { username: 's002', realName: '李四', initialPassword: 'Ab@12345' },
+        { username: 's003', realName: '王五', initialPassword: 'Cd@67890' },
+      ],
+      usernameStart: 's002',
+    })
+    const wrapper = mount(StudentList, { global: { plugins: [createPinia(), ElementPlus] } })
+    await flushPromises()
+
+    await wrapper.find('[data-testid="batch-btn"]').trigger('click')
+    const dialog = wrapper.find('[data-testid="batch-dialog"]')
+    await dialog.find('textarea[data-testid="names-input"]').setValue('李四\n王五\n')
+    await dialog.find('[data-testid="batch-submit"]').trigger('click')
+    await flushPromises()
+
+    const createObjectURL = vi
+      .spyOn(URL, 'createObjectURL')
+      .mockReturnValue('blob:mock-url')
+    const revokeObjectURL = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {})
+
+    await dialog.find('[data-testid="export-btn"]').trigger('click')
+    await flushPromises()
+
+    expect(createObjectURL).toHaveBeenCalledTimes(1)
+    const blob = createObjectURL.mock.calls[0]![0] as Blob
+    expect(blob.type).toBe(
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    )
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:mock-url')
+
+    // 解析 xlsx 校验表头与行内容
+    const buf = await blob.arrayBuffer()
+    const wb = XLSX.read(buf, { type: 'array' })
+    const rows = XLSX.utils.sheet_to_json<Record<string, string>>(wb.Sheets[wb.SheetNames[0]!])
+    expect(rows).toEqual([
+      { 学生账号: 's002', 姓名: '李四', 初始密码: 'Ab@12345' },
+      { 学生账号: 's003', 姓名: '王五', 初始密码: 'Cd@67890' },
+    ])
     wrapper.unmount()
   })
 })

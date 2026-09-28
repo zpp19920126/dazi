@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
+import * as XLSX from 'xlsx'
 import request from '@/utils/request'
 
 interface ClassItem {
@@ -96,6 +97,28 @@ async function copyAll() {
   ElMessage.success('已复制全部账号与初始密码')
 }
 
+// 导出 xlsx：初始密码仅批量生成时可见，导出供教师留存
+function exportExcel() {
+  const ws = XLSX.utils.aoa_to_sheet([
+    ['学生账号', '姓名', '初始密码'],
+    ...batchResult.value.map((r) => [r.username, r.realName, r.initialPassword]),
+  ])
+  ws['!cols'] = [{ wch: 12 }, { wch: 16 }, { wch: 16 }]
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, '学生账号')
+  const data = XLSX.write(wb, { bookType: 'xlsx', type: 'array' }) as ArrayBuffer
+  const blob = new Blob([data], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `学生账号_${new Date().toISOString().slice(0, 10)}.xlsx`
+  a.click()
+  URL.revokeObjectURL(url)
+  ElMessage.success('已导出 Excel')
+}
+
 function fmtTime(s?: string | null): string {
   return s ? s.slice(0, 19).replace('T', ' ') : '-'
 }
@@ -185,6 +208,7 @@ function fmtTime(s?: string | null): string {
             <el-table-column prop="initialPassword" label="初始密码" />
           </el-table>
           <div style="margin-top: 12px; text-align: right">
+            <el-button data-testid="export-btn" @click="exportExcel">导出Excel</el-button>
             <el-button data-testid="copy-btn" type="primary" @click="copyAll">
               一键复制全部
             </el-button>
