@@ -5,7 +5,6 @@ import StudentLayout from '@/layouts/StudentLayout.vue'
 import TeacherLayout from '@/layouts/TeacherLayout.vue'
 import ChangePasswordView from '@/views/ChangePassword.vue'
 import LoginView from '@/views/Login.vue'
-import Placeholder from '@/views/Placeholder.vue'
 import MyTasksView from '@/views/student/MyTasks.vue'
 import TypingView from '@/views/student/Typing.vue'
 import MyRecordsView from '@/views/student/MyRecords.vue'
@@ -15,11 +14,16 @@ import TeacherClassListView from '@/views/teacher/ClassList.vue'
 import TeacherStudentListView from '@/views/teacher/StudentList.vue'
 import TeacherMyTextsView from '@/views/teacher/MyTexts.vue'
 import TeacherTaskListView from '@/views/teacher/TaskList.vue'
+import TeacherLiveBoardView from '@/views/teacher/LiveBoard.vue'
+import TeacherGradesView from '@/views/teacher/Grades.vue'
+import AdminOverviewView from '@/views/admin/Overview.vue'
+import AdminTeacherAccountsView from '@/views/admin/TeacherAccounts.vue'
+import AdminAllTextsView from '@/views/admin/AllTexts.vue'
 
 // roleHome 真身在 stores/auth.ts（避免页面组件反向依赖 router 形成循环初始化），此处保持既有导出位置兼容
 export { roleHome }
 
-// 路由表：登录/改密 + 学生/教师/超管三端布局壳（子页面均为占位，由后续任务替换）
+// 路由表：登录/改密 + 学生/教师/超管三端布局壳
 export const routes: RouteRecordRaw[] = [
   { path: '/login', name: 'login', component: LoginView, meta: { title: '登录' } },
   {
@@ -100,13 +104,13 @@ export const routes: RouteRecordRaw[] = [
         // 实时看板依赖具体班级，从任务管理进入，不放入侧边固定菜单
         path: 'live/:classId',
         name: 'teacher-live',
-        component: Placeholder,
+        component: TeacherLiveBoardView,
         meta: { roles: ['teacher'], title: '实时看板' },
       },
       {
         path: 'grades',
         name: 'teacher-grades',
-        component: Placeholder,
+        component: TeacherGradesView,
         meta: { roles: ['teacher'], title: '成绩查询' },
       },
     ],
@@ -120,19 +124,19 @@ export const routes: RouteRecordRaw[] = [
       {
         path: 'overview',
         name: 'admin-overview',
-        component: Placeholder,
+        component: AdminOverviewView,
         meta: { roles: ['admin'], title: '系统概览' },
       },
       {
         path: 'teachers',
         name: 'admin-teachers',
-        component: Placeholder,
+        component: AdminTeacherAccountsView,
         meta: { roles: ['admin'], title: '教师账号' },
       },
       {
         path: 'texts',
         name: 'admin-texts',
-        component: Placeholder,
+        component: AdminAllTextsView,
         meta: { roles: ['admin'], title: '全局文章库' },
       },
     ],

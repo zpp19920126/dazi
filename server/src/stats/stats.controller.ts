@@ -12,4 +12,10 @@ export class StatsController {
   teacherDashboard(@CurrentUser() user: { id: number }) {
     return this.statsService.teacherDashboard(user.id);
   }
+
+  @Get('admin-overview')
+  @Roles('admin')
+  adminOverview() {
+    return this.statsService.adminOverview();
+  }
 }
