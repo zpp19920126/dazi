@@ -73,6 +73,20 @@ describe('users 模块 (e2e)', () => {
     await app.close();
   });
 
+  /** admin 经批量接口在指定班级创建 1 名学生并返回落库记录 */
+  async function createStudentViaAdmin(classId: number, realName: string) {
+    const res = await request(app.getHttpServer())
+      .post('/api/users/students/batch')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ classId, names: [realName] });
+    expect(res.status).toBe(200);
+    const { username } = res.body.data.created[0] as { username: string };
+    createdUsernames.push(username);
+    const user = await prisma.user.findUnique({ where: { username } });
+    expect(user).toBeTruthy();
+    return user!;
+  }
+
   /** 教师A 登录并完成强制改密，返回可调用业务接口的 token（结果缓存） */
   async function getTeacherAToken() {
     if (teacherAToken) return teacherAToken;
@@ -298,5 +312,157 @@ describe('users 模块 (e2e)', () => {
     expect(delB.status).toBe(200);
     const gone = await prisma.user.findUnique({ where: { id: tmpUser.id } });
     expect(gone).toBeNull();
+  });
+
+  it('7. 教师改学生姓名与停用/启用 → 200 且列表生效；admin 同接口可用', async () => {
+    const token = await getTeacherAToken();
+    const classA = await prisma.class.findFirst({ where: { name: `一班${suffix}` } });
+    const listRes = await request(app.getHttpServer())
+      .get(`/api/users/students?classId=${classA!.id}`)
+      .set('Authorization', `Bearer ${token}`);
+    const student = (listRes.body.data.list as Array<{ id: number; realName: string }>).find(
+      (r) => r.realName === '张小一',
+    )!;
+
+    // 改姓名
+    const rename = await request(app.getHttpServer())
+      .patch(`/api/users/students/${student.id}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ realName: '张小一改' });
+    expect(rename.status).toBe(200);
+
+    // 停用 → 列表 status 变 disabled
+    const disable = await request(app.getHttpServer())
+      .patch(`/api/users/students/${student.id}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ status: 'disabled' });
+    expect(disable.status).toBe(200);
+    const rows = await request(app.getHttpServer())
+      .get(`/api/users/students?classId=${classA!.id}`)
+      .set('Authorization', `Bearer ${token}`);
+    const row = (
+      rows.body.data.list as Array<{ id: number; realName: string; status: string }>
+    ).find((r) => r.id === student.id)!;
+    expect(row.realName).toBe('张小一改');
+    expect(row.status).toBe('disabled');
+
+    // 启用恢复
+    const enable = await request(app.getHttpServer())
+      .patch(`/api/users/students/${student.id}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ status: 'active' });
+    expect(enable.status).toBe(200);
+
+    // admin 走同一接口也可修改
+    const adminRename = await request(app.getHttpServer())
+      .patch(`/api/users/students/${student.id}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ realName: '张小一' });
+    expect(adminRename.status).toBe(200);
+  });
+
+  it('8. 教师改/删他人班级学生 → 403；目标不存在 → 404', async () => {
+    const token = await getTeacherAToken();
+    const classB = await prisma.class.findFirst({ where: { name: `二班${suffix}` } });
+    const other = await createStudentViaAdmin(classB!.id, '别班学生');
+
+    const patchRes = await request(app.getHttpServer())
+      .patch(`/api/users/students/${other.id}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ realName: '越权改名' });
+    expect(patchRes.status).toBe(403);
+
+    const delRes = await request(app.getHttpServer())
+      .delete(`/api/users/students/${other.id}`)
+      .set('Authorization', `Bearer ${token}`);
+    expect(delRes.status).toBe(403);
+
+    const patchMissing = await request(app.getHttpServer())
+      .patch('/api/users/students/99999999')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ realName: '不存在' });
+    expect(patchMissing.status).toBe(404);
+
+    const delMissing = await request(app.getHttpServer())
+      .delete('/api/users/students/99999999')
+      .set('Authorization', `Bearer ${token}`);
+    expect(delMissing.status).toBe(404);
+  });
+
+  it('9. 教师删除有关联数据的学生 → 200 且 user/records/heartbeat 级联清除', async () => {
+    const token = await getTeacherAToken();
+    const classA = await prisma.class.findFirst({ where: { name: `一班${suffix}` } });
+    const student = await createStudentViaAdmin(classA!.id, '删我一');
+
+    // 造关联数据：一条打字记录 + 一条心跳
+    await prisma.record.create({
+      data: {
+        userId: student.id,
+        mode: 'article',
+        speed: '30.50',
+        accuracy: '95.50',
+        totalChars: 100,
+        correctChars: 95,
+        backspaceCount: 5,
+        durationSeconds: 60,
+      },
+    });
+    await prisma.heartbeat.create({
+      data: {
+        userId: student.id,
+        status: 'typing',
+        speed: '30.50',
+        accuracy: '95.50',
+        progress: '50.00',
+        elapsedSeconds: 30,
+        charIndex: 50,
+      },
+    });
+
+    const del = await request(app.getHttpServer())
+      .delete(`/api/users/students/${student.id}`)
+      .set('Authorization', `Bearer ${token}`);
+    expect(del.status).toBe(200);
+    expect(del.body.code).toBe(0);
+
+    expect(await prisma.user.findUnique({ where: { id: student.id } })).toBeNull();
+    expect(await prisma.record.findFirst({ where: { userId: student.id } })).toBeNull();
+    expect(await prisma.heartbeat.findUnique({ where: { userId: student.id } })).toBeNull();
+  });
+
+  it('10. 教师批量删除本班 2 名学生 → 200 { deleted: 2 } 且记录消失', async () => {
+    const token = await getTeacherAToken();
+    const classA = await prisma.class.findFirst({ where: { name: `一班${suffix}` } });
+    const s1 = await createStudentViaAdmin(classA!.id, '删我二');
+    const s2 = await createStudentViaAdmin(classA!.id, '删我三');
+
+    const res = await request(app.getHttpServer())
+      .post('/api/users/students/batch-delete')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ ids: [s1.id, s2.id] });
+    expect(res.status).toBe(200);
+    expect(res.body.code).toBe(0);
+    expect(res.body.data.deleted).toBe(2);
+
+    expect(await prisma.user.findUnique({ where: { id: s1.id } })).toBeNull();
+    expect(await prisma.user.findUnique({ where: { id: s2.id } })).toBeNull();
+  });
+
+  it('11. 批量删除混入越权 id → 403 且一个都不删', async () => {
+    const token = await getTeacherAToken();
+    const classA = await prisma.class.findFirst({ where: { name: `一班${suffix}` } });
+    const classB = await prisma.class.findFirst({ where: { name: `二班${suffix}` } });
+    const mine = await createStudentViaAdmin(classA!.id, '删我四');
+    const others = await createStudentViaAdmin(classB!.id, '别班学生二');
+
+    const res = await request(app.getHttpServer())
+      .post('/api/users/students/batch-delete')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ ids: [mine.id, others.id] });
+    expect(res.status).toBe(403);
+
+    // 原子性：越权时全部保留
+    expect(await prisma.user.findUnique({ where: { id: mine.id } })).not.toBeNull();
+    expect(await prisma.user.findUnique({ where: { id: others.id } })).not.toBeNull();
   });
 });

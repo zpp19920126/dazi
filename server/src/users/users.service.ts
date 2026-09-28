@@ -7,9 +7,11 @@ import {
 import { Prisma, User } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { BatchDeleteStudentsDto } from './dto/batch-delete-students.dto.js';
 import { BatchStudentsDto } from './dto/batch-students.dto.js';
 import { CreateTeacherDto } from './dto/create-teacher.dto.js';
 import { PatchUserDto } from './dto/patch-user.dto.js';
+import { UpdateStudentDto } from './dto/update-student.dto.js';
 import { generatePassword } from './utils/password.js';
 
 const USERNAME_SEQ = { t: /^t(\d+)$/, s: /^s(\d+)$/ } as const;
@@ -142,6 +144,65 @@ export class UsersService {
       throw e;
     }
     return { created, usernameStart };
+  }
+
+  /** 修改学生信息（姓名/状态）；教师仅限本人班级 */
+  async updateStudent(id: number, dto: UpdateStudentDto, currentUser: { id: number; role: string }) {
+    const target = await this.prisma.user.findUnique({ where: { id } });
+    if (!target || target.role !== 'student') throw new NotFoundException('学生不存在');
+    await this.assertStudentClassOwnership(target.classId, currentUser);
+    await this.prisma.user.update({
+      where: { id },
+      data: {
+        ...(dto.realName !== undefined ? { realName: dto.realName } : {}),
+        ...(dto.status !== undefined ? { status: dto.status } : {}),
+      },
+    });
+    return null;
+  }
+
+  /** 真删除学生：事务内级联清除心跳、打字记录后删账号；教师仅限本人班级 */
+  async deleteStudent(id: number, currentUser: { id: number; role: string }) {
+    const target = await this.prisma.user.findUnique({ where: { id } });
+    if (!target || target.role !== 'student') throw new NotFoundException('学生不存在');
+    await this.assertStudentClassOwnership(target.classId, currentUser);
+    await this.prisma.$transaction(async (tx) => {
+      await tx.heartbeat.deleteMany({ where: { userId: id } });
+      await tx.record.deleteMany({ where: { userId: id } });
+      await tx.user.delete({ where: { id } });
+    });
+    return null;
+  }
+
+  /** 批量删除学生：全部校验通过才删除（原子），返回删除数量 */
+  async batchDeleteStudents(dto: BatchDeleteStudentsDto, currentUser: { id: number; role: string }) {
+    const ids = [...new Set(dto.ids)];
+    const targets = await this.prisma.user.findMany({
+      where: { id: { in: ids }, role: 'student' },
+      select: { id: true, classId: true },
+    });
+    if (targets.length !== ids.length) throw new NotFoundException('学生不存在');
+    for (const t of targets) {
+      await this.assertStudentClassOwnership(t.classId, currentUser);
+    }
+    await this.prisma.$transaction(async (tx) => {
+      await tx.heartbeat.deleteMany({ where: { userId: { in: ids } } });
+      await tx.record.deleteMany({ where: { userId: { in: ids } } });
+      await tx.user.deleteMany({ where: { id: { in: ids }, role: 'student' } });
+    });
+    return { deleted: ids.length };
+  }
+
+  /** 校验当前教师可操作该学生所在班级；admin 放行 */
+  private async assertStudentClassOwnership(
+    classId: number | null,
+    currentUser: { id: number; role: string },
+  ) {
+    if (currentUser.role !== 'teacher') return;
+    const klass = classId ? await this.prisma.class.findUnique({ where: { id: classId } }) : null;
+    if (!klass || klass.teacherId !== currentUser.id) {
+      throw new ForbiddenException('无权访问该班级学生');
+    }
   }
 
   /** 统一账号操作：重置密码 / 停用 / 启用 / 删除 */

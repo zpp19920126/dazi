@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
-import { ElMessage } from 'element-plus'
+import { onMounted, reactive, ref } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import * as XLSX from 'xlsx'
 import request from '@/utils/request'
 
@@ -37,6 +37,83 @@ const batchVisible = ref(false)
 const namesText = ref('')
 const submitting = ref(false)
 const batchResult = ref<CreatedAccount[]>([])
+
+// 编辑弹窗：修改姓名与状态（停用/启用）
+const editVisible = ref(false)
+const editing = ref<StudentItem | null>(null)
+const editForm = reactive<{ realName: string; status: 'active' | 'disabled' }>({
+  realName: '',
+  status: 'active',
+})
+
+// 批量删除：表格勾选行
+const selected = ref<StudentItem[]>([])
+
+function openEdit(row: StudentItem) {
+  editing.value = row
+  editForm.realName = row.realName
+  editForm.status = row.status
+  editVisible.value = true
+}
+
+async function saveEdit() {
+  if (!editing.value) return
+  const realName = editForm.realName.trim()
+  if (!realName) {
+    ElMessage.warning('姓名不能为空')
+    return
+  }
+  await request.patch(`/users/students/${editing.value.id}`, {
+    realName,
+    status: editForm.status,
+  })
+  ElMessage.success('已保存')
+  editVisible.value = false
+  await loadStudents()
+}
+
+/** 确认弹窗：确认返回 true，取消返回 false */
+async function confirmBox(message: string, title: string): Promise<boolean> {
+  try {
+    await ElMessageBox.confirm(message, title, {
+      type: 'warning',
+      confirmButtonText: '删除',
+      cancelButtonText: '取消',
+    })
+    return true
+  } catch {
+    return false
+  }
+}
+
+async function removeStudent(row: StudentItem) {
+  const ok = await confirmBox(
+    `确定删除学生「${row.realName}（${row.username}）」吗？其打字记录将一并清除，删除后不可恢复。`,
+    '删除确认',
+  )
+  if (!ok) return
+  await request.delete(`/users/students/${row.id}`)
+  ElMessage.success('已删除')
+  await loadStudents()
+}
+
+function onSelectionChange(rows: StudentItem[]) {
+  selected.value = rows
+}
+
+async function batchDelete() {
+  if (selected.value.length === 0) return
+  const count = selected.value.length
+  const ok = await confirmBox(
+    `确定删除选中的 ${count} 名学生吗？其打字记录将一并清除，删除后不可恢复。`,
+    '批量删除确认',
+  )
+  if (!ok) return
+  const ids = selected.value.map((s) => s.id)
+  const data = await request.post<{ deleted: number }>('/users/students/batch-delete', { ids })
+  ElMessage.success(`已删除 ${data.deleted} 名学生`)
+  await loadStudents()
+}
 
 async function loadStudents() {
   if (classId.value === null) return
@@ -178,9 +255,18 @@ function fmtTime(s?: string | null): string {
       <el-button data-testid="export-list-btn" :disabled="classId === null" @click="exportListExcel">
         导出Excel
       </el-button>
+      <el-button
+        data-testid="batch-delete-btn"
+        type="danger"
+        :disabled="selected.length === 0"
+        @click="batchDelete"
+      >
+        批量删除
+      </el-button>
     </div>
 
-    <el-table :data="students" data-testid="students-table">
+    <el-table :data="students" data-testid="students-table" @selection-change="onSelectionChange">
+      <el-table-column type="selection" width="45" />
       <el-table-column prop="username" label="用户名" width="120" />
       <el-table-column prop="realName" label="姓名" width="140" />
       <el-table-column label="状态" width="100">
@@ -200,6 +286,16 @@ function fmtTime(s?: string | null): string {
       </el-table-column>
       <el-table-column label="创建时间" width="180">
         <template #default="{ row }">{{ fmtTime(row.createdAt) }}</template>
+      </el-table-column>
+      <el-table-column label="操作" width="140" fixed="right">
+        <template #default="{ row }">
+          <el-button data-testid="edit-btn" link type="primary" @click="openEdit(row)">
+            编辑
+          </el-button>
+          <el-button data-testid="delete-btn" link type="danger" @click="removeStudent(row)">
+            删除
+          </el-button>
+        </template>
       </el-table-column>
     </el-table>
 
@@ -243,6 +339,38 @@ function fmtTime(s?: string | null): string {
             </el-button>
           </div>
         </template>
+      </div>
+    </el-dialog>
+
+    <el-dialog v-model="editVisible" title="编辑学生" width="440px">
+      <div data-testid="edit-dialog">
+        <el-form label-width="70px">
+          <el-form-item label="用户名">
+            <span>{{ editing?.username }}</span>
+          </el-form-item>
+          <el-form-item label="姓名">
+            <el-input
+              v-model="editForm.realName"
+              data-testid="edit-name-input"
+              maxlength="50"
+              placeholder="学生姓名"
+            />
+          </el-form-item>
+          <el-form-item label="状态">
+            <el-switch
+              v-model="editForm.status"
+              data-testid="edit-status-switch"
+              active-value="active"
+              inactive-value="disabled"
+              active-text="正常"
+              inactive-text="停用"
+            />
+          </el-form-item>
+        </el-form>
+        <div style="text-align: right">
+          <el-button @click="editVisible = false">取消</el-button>
+          <el-button data-testid="edit-save" type="primary" @click="saveEdit">保存</el-button>
+        </div>
       </div>
     </el-dialog>
   </div>
