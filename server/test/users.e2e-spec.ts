@@ -196,6 +196,52 @@ describe('users 模块 (e2e)', () => {
     expect(res.body.data.list).toHaveLength(3);
   });
 
+  it('4c. 学生列表下发 initialPassword；重置密码后更新；学生改密后清除为 null', async () => {
+    const token = await getTeacherAToken();
+    const classA = await prisma.class.findFirst({ where: { name: `一班${suffix}` } });
+    const getStudents = async () => {
+      const res = await request(app.getHttpServer())
+        .get(`/api/users/students?classId=${classA!.id}`)
+        .set('Authorization', `Bearer ${token}`);
+      expect(res.status).toBe(200);
+      return res.body.data.list as Array<{
+        id: number;
+        username: string;
+        realName: string;
+        initialPassword: string | null;
+      }>;
+    };
+
+    // 1) 批量生成后，列表下发与 batch 响应一致的初始密码
+    const rows1 = await getStudents();
+    for (const r of rows1) {
+      expect(r.initialPassword).toHaveLength(8);
+    }
+
+    // 2) 重置密码后，列表下发重置值
+    const student = rows1.find((r) => r.realName === '张小三')!;
+    const reset = await request(app.getHttpServer())
+      .patch(`/api/users/${student.id}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ action: 'reset-password', initialPassword: 'studReset99' });
+    expect(reset.status).toBe(200);
+    const row2 = (await getStudents()).find((r) => r.id === student.id)!;
+    expect(row2.initialPassword).toBe('studReset99');
+
+    // 3) 学生完成改密后，初始密码清除为 null
+    const login = await request(app.getHttpServer())
+      .post('/api/auth/login')
+      .send({ username: student.username, password: 'studReset99' });
+    expect(login.status).toBe(200);
+    const change = await request(app.getHttpServer())
+      .post('/api/auth/change-password')
+      .set('Authorization', `Bearer ${login.body.data.token}`)
+      .send({ oldPassword: 'studReset99', newPassword: 'studNew45678' });
+    expect(change.status).toBe(200);
+    const row3 = (await getStudents()).find((r) => r.id === student.id)!;
+    expect(row3.initialPassword).toBeNull();
+  });
+
   it('5. PATCH disable 后正确密码登录 → 401 账号已停用；enable 恢复登录', async () => {
     const student = await prisma.user.findFirst({
       where: { realName: '张小二', role: 'student' },
