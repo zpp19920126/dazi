@@ -704,7 +704,7 @@ PinyinBar：自定义拼音候选条组件（输入字母序列显示候选汉�
 
 **Interfaces:** Produces: 可直接使用的三份配置 + 备份 cron 说明
 
-- [ ] **Step 1: 编写配置（完整）**
+- [x] **Step 1: 编写配置（完整）**
 
 `deploy/nginx.conf`：
 
@@ -746,9 +746,9 @@ module.exports = {
 
 `deploy/backup.sh`：`mysqldump -u root -p"$MYSQL_PWD" typing_system | gzip > /var/backups/typing/$(date +%F).sql.gz` + `find ... -mtime +7 -delete`（保留 7 份）；crontab 行：`0 2 * * * /var/www/typing/deploy/backup.sh`
 
-- [ ] **Step 2: 部署手册 README**（按步骤列出：服务器装 Node20/MySQL8/Nginx/PM2 → 建库 → scp dist 与 server → npm ci && prisma migrate deploy && prisma db seed → pm2 start → nginx 配置挂载 → 校验 health 与页面）
-- [ ] **Step 3: 本地模拟验证**：`npm run build`（web）+ `npm run build`（server）产物齐全；nginx 代理用本地 docker 或注释说明人工验证步骤
-- [ ] **Step 4: 提交** `git commit -m "chore: 部署配置(Nginx/PM2/备份脚本/手册)"`
+- [x] **Step 2: 部署手册 README**（按步骤列出：服务器装 Node20/MySQL8/Nginx/PM2 → 建库 → scp dist 与 server → npm ci && prisma migrate deploy && prisma db seed → pm2 start → nginx 配置挂载 → 校验 health 与页面）
+- [x] **Step 3: 本地模拟验证**：`npm run build`（web）+ `npm run build`（server）产物齐全；nginx 代理用本地 docker 或注释说明人工验证步骤
+- [x] **Step 4: 提交** `git commit -m "chore: 部署配置(Nginx/PM2/备份脚本/手册)"`
 
 ---
 
