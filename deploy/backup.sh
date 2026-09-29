@@ -13,7 +13,7 @@ BACKUP_DIR="${BACKUP_DIR:-/var/backups/typing}"
 mkdir -p "$BACKUP_DIR"
 
 export MYSQL_PWD
-mysqldump -u "$MYSQL_USER" --single-transaction "$DB_NAME" \
+mysqldump -u "$MYSQL_USER" --single-transaction --no-tablespaces "$DB_NAME" \
   | gzip > "$BACKUP_DIR/$(date +%F).sql.gz"
 
 # 保留最近 7 份，其余删除

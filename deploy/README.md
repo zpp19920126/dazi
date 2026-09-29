@@ -9,7 +9,9 @@
 - 部署配置：`/var/www/typing/deploy`（本目录）
 - 日志：`/var/log/typing`；备份：`/var/backups/typing`
 
-## 1. 环境准备（Ubuntu 22.04 为例）
+## 1. 环境准备
+
+Ubuntu 22.04：
 
 ```bash
 # Node 20
@@ -20,6 +22,16 @@ sudo apt-get install -y mysql-server nginx
 # PM2
 sudo npm i -g pm2
 sudo mkdir -p /var/www/typing /var/log/typing /var/backups/typing
+```
+
+Rocky/RHEL 9（本次实际部署环境）：
+
+```bash
+curl -fsSL https://rpm.nodesource.com/setup_20.x | bash -
+dnf install -y nodejs mysql-server nginx
+npm i -g pm2
+mkdir -p /var/www/typing/web-dist /var/www/typing/server /var/www/typing/deploy /var/log/typing /var/backups/typing
+systemctl enable --now mysqld nginx
 ```
 
 ## 2. 建库
@@ -56,6 +68,7 @@ PORT=3000
 EOF
 npx prisma migrate deploy   # 建表
 npx prisma db seed          # 超管 admin/admin123（首次登录强制改密）+ 内置文章
+# 注意：package.json#prisma.seed 已固化为 node --loader 方式，兼容 "type": "module" 项目（node 18+ 均可）
 ```
 
 ## 5. PM2 启动后端
@@ -73,6 +86,9 @@ sudo cp /var/www/typing/deploy/nginx.conf /etc/nginx/conf.d/typing.conf
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
+Rocky/RHEL 9 注意：主配置 `/etc/nginx/nginx.conf` 的 http 段自带一个 `server_name _` 的默认
+server 块，会与本站冲突（`nginx -t` 报 conflicting server name 警告），需注释该段后再 reload。
+
 ## 7. 验收清单
 
 1. `curl http://127.0.0.1/api/health` → 200
@@ -86,7 +102,10 @@ sudo nginx -t && sudo systemctl reload nginx
 sudo chmod +x /var/www/typing/deploy/backup.sh
 crontab -e
 # 每晚 2 点备份，保留最近 7 天（脚本内自动清理）
-0 2 * * * MYSQL_PWD='<数据库密码>' /var/www/typing/deploy/backup.sh >> /var/log/typing/backup.log 2>&1
+0 2 * * * MYSQL_USER=typing MYSQL_PWD='<数据库密码>' /var/www/typing/deploy/backup.sh >> /var/log/typing/backup.log 2>&1
 ```
+
+注意：Rocky 9 的 MySQL root@localhost 走 auth_socket 认证，mysqldump 必须用 `typing` 用户备份；
+`--no-tablespaces` 已写入 backup.sh（typing 用户无 PROCESS 权限）。
 
 恢复：`gunzip < /var/backups/typing/<日期>.sql.gz | mysql -u typing -p typing_system`
