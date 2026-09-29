@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia } from 'pinia'
-import ElementPlus, { ElMessageBox } from 'element-plus'
+import ElementPlus, { ElMessageBox, type MessageBoxData } from 'element-plus'
 import * as XLSX from 'xlsx'
 
 const getMock = vi.hoisted(() => vi.fn())
@@ -209,7 +209,9 @@ describe('StudentList.vue 教师学生账号页', () => {
       .mockResolvedValueOnce({ list: students })
       .mockResolvedValueOnce({ list: [] })
     deleteMock.mockResolvedValue(null)
-    const confirmSpy = vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue('confirm')
+    const confirmSpy = vi
+      .spyOn(ElMessageBox, 'confirm')
+      .mockResolvedValue('confirm' as MessageBoxData)
     const wrapper = mount(StudentList, { global: { plugins: [createPinia(), ElementPlus] } })
     await flushPromises()
 
@@ -258,7 +260,9 @@ describe('StudentList.vue 教师学生账号页', () => {
       .mockResolvedValueOnce({ list: two })
       .mockResolvedValueOnce({ list: [] })
     postMock.mockResolvedValue({ deleted: 2 })
-    const confirmSpy = vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue('confirm')
+    const confirmSpy = vi
+      .spyOn(ElMessageBox, 'confirm')
+      .mockResolvedValue('confirm' as MessageBoxData)
     const wrapper = mount(StudentList, { global: { plugins: [createPinia(), ElementPlus] } })
     await flushPromises()
 
