@@ -1,5 +1,7 @@
 generator client {
   provider = "prisma-client-js"
+  // 额外生成 CentOS 7（glibc 2.17 / OpenSSL 1.0.2）可用的查询引擎，供离线部署使用
+  binaryTargets = ["native", "rhel-openssl-1.0.x"]
 }
 
 datasource db {
