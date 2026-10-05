@@ -113,4 +113,16 @@ describe('HomeworkService.update / settle', () => {
     expect(data.title).toBe('新题');
     expect(prisma.homeworkSubmission.findMany).not.toHaveBeenCalled();
   });
+
+  it('空 body PATCH：{} 走 Prisma 空 data no-op（prisma≥4.5 允许，原样返回行）→ 200，行为锁定', async () => {
+    const { svc, prisma } = makeService();
+    prisma.homework.update.mockResolvedValue(hwRow({ klass: undefined }));
+    const res = await svc.update(7, {}, teacher);
+    const arg = prisma.homework.update.mock.calls[0][0] as { where: unknown; data: Record<string, unknown> };
+    // 所有字段均为 undefined：Prisma 视作空 data，不发 UPDATE 语句、直接回行
+    expect(Object.values(arg.data).every((v) => v === undefined)).toBe(true);
+    expect(arg.where).toEqual({ id: 7 });
+    expect(res).toMatchObject({ id: 7, title: '第三课作业' });
+    expect(prisma.homeworkSubmission.findMany).not.toHaveBeenCalled();
+  });
 });
