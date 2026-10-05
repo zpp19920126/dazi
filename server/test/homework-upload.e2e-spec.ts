@@ -249,12 +249,19 @@ describe('homework-upload 作业提交附件 (e2e)', () => {
     expect(stagingFiles()).toEqual([]);
   });
 
-  it('5. 数量限制：4 个附件 → 400「最多上传 3 个附件」，无落库无残留', async () => {
-    const four = [pdf('a.pdf'), pdf('b.pdf'), pdf('c.pdf'), pdf('d.pdf')];
-    const res = await submitReq(sCToken, hwId, '四个附件', four);
+  it('5. 数量：10 个附件 → 200（多图上限）；11 个 → 400「最多上传 10 个附件」，无新增落库残留、staging 清空', async () => {
+    const ten = Array.from({ length: 10 }, (_, i) => pdf(`f${i + 1}.pdf`));
+    const ok = await submitReq(sCToken, hwId, '十个附件', ten);
+    expect(ok.status).toBe(200);
+    expect(await prisma.homeworkFile.count({ where: { submission: { homeworkId: hwId } } })).toBe(10);
+
+    const eleven = Array.from({ length: 11 }, (_, i) => pdf(`g${i + 1}.pdf`));
+    const res = await submitReq(sCToken, hwId, '十一个附件', eleven);
     expect(res.status).toBe(400);
-    expect(res.body.message).toContain('最多上传 3 个附件');
+    expect(res.body.message).toContain('最多上传 10 个附件');
+    // 失败提交不落库：仍是刚才那 10 个附件的那一条提交
     expect(await prisma.homeworkSubmission.count({ where: { homeworkId: hwId } })).toBe(1);
+    expect(await prisma.homeworkFile.count({ where: { submission: { homeworkId: hwId } } })).toBe(10);
     expect(stagingFiles()).toEqual([]);
   });
 

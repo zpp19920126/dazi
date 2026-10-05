@@ -12,7 +12,7 @@ export function stagingDir(): string {
 }
 
 export const MAX_FILE_BYTES = 10 * 1024 * 1024; // 单文件 10MB（业务限制，413）
-export const MAX_FILES = 3; // 每次提交最多 3 个附件（400）
+export const MAX_FILES = 10; // 每次提交最多 10 个附件（400）
 export const ALLOWED_EXT = ['jpg', 'jpeg', 'png', 'pdf', 'doc', 'docx', 'zip'];
 
 export function ensureDirs(): void {
