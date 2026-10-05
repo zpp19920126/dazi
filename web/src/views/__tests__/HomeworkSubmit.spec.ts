@@ -116,4 +116,64 @@ describe('学生作业提交页', () => {
     expect(wrapper.find('[data-testid="last-submission"]').exists()).toBe(true)
     wrapper.unmount()
   })
+
+  describe('多图追加选择（上限10）', () => {
+    const mkFile = (name: string) => new File(['x'], name, { type: 'image/jpeg' })
+    async function pickFiles(wrapper: ReturnType<typeof mount>, files: File[]) {
+      const el = wrapper.find('[data-testid="file-input"]').element as HTMLInputElement
+      Object.defineProperty(el, 'files', { value: files, configurable: true })
+      await wrapper.find('[data-testid="file-input"]').trigger('change')
+    }
+
+    it('两次选择追加去重，可逐项移除；提示文案为最多10个', async () => {
+      mocks.get.mockResolvedValue(detailOf({ allowAttachment: true }))
+      const wrapper = mount(HomeworkSubmit, { global: { plugins: [ElementPlus] } })
+      await flushPromises()
+
+      expect(wrapper.text()).toContain('最多 10 个')
+
+      await pickFiles(wrapper, [mkFile('a.jpg'), mkFile('b.jpg')])
+      expect(wrapper.findAll('[data-testid^="picked-file-"]').length).toBe(2)
+
+      // 重复选 b.jpg（同名同大小）+ 新文件 c.jpg → 共 3
+      await pickFiles(wrapper, [mkFile('b.jpg'), mkFile('c.jpg')])
+      expect(wrapper.findAll('[data-testid^="picked-file-"]').length).toBe(3)
+
+      await wrapper.find('[data-testid="picked-file-0"] button').trigger('click')
+      expect(wrapper.findAll('[data-testid^="picked-file-"]').length).toBe(2)
+      expect(wrapper.text()).not.toContain('a.jpg')
+      expect(wrapper.text()).toContain('b.jpg')
+      wrapper.unmount()
+    })
+
+    it('一次选 12 个只保留 10 个；提交 FormData 恰好 10 个文件', async () => {
+      mocks.get.mockResolvedValue(detailOf({ allowAttachment: true }))
+      const wrapper = mount(HomeworkSubmit, { global: { plugins: [ElementPlus] } })
+      await flushPromises()
+
+      await pickFiles(wrapper, Array.from({ length: 12 }, (_, i) => mkFile(`p${i}.jpg`)))
+      expect(wrapper.findAll('[data-testid^="picked-file-"]').length).toBe(10)
+
+      await wrapper.find('textarea[data-testid="content-input"]').setValue('多图答案')
+      await wrapper.find('[data-testid="send-submit"]').trigger('click')
+      await flushPromises()
+
+      const [, fd] = mocks.post.mock.calls[0]
+      expect((fd as FormData).getAll('files')).toHaveLength(10)
+      wrapper.unmount()
+    })
+
+    it('超过10MB的文件被跳过并提示，不进入已选列表', async () => {
+      mocks.get.mockResolvedValue(detailOf({ allowAttachment: true }))
+      const wrapper = mount(HomeworkSubmit, { global: { plugins: [ElementPlus] } })
+      await flushPromises()
+
+      const big = new File([''], '超大.png', { type: 'image/png' })
+      Object.defineProperty(big, 'size', { value: 11 * 1024 * 1024 })
+      await pickFiles(wrapper, [big, mkFile('ok.jpg')])
+      expect(wrapper.findAll('[data-testid^="picked-file-"]').length).toBe(1)
+      expect(wrapper.text()).toContain('ok.jpg')
+      wrapper.unmount()
+    })
+  })
 })

@@ -35,6 +35,10 @@ const files = ref<File[]>([])
 const fileInput = ref<HTMLInputElement>()
 const sending = ref(false)
 
+// 与后端 MAX_FILES / MAX_FILE_BYTES 同值（400/413 的服务端校验仍是最终防线）
+const MAX_FILES_UI = 10
+const MAX_FILE_BYTES_UI = 10 * 1024 * 1024
+
 const pastDue = computed(() => (detail.value ? Date.now() > new Date(detail.value.homework.dueAt).getTime() : false))
 
 async function load() {
@@ -46,7 +50,31 @@ async function load() {
 
 function onFileChange(e: Event) {
   const input = e.target as HTMLInputElement
-  files.value = Array.from(input.files ?? [])
+  const seen = new Set(files.value.map((f) => `${f.name}:${f.size}`))
+  let overCount = false
+  const skipped: string[] = []
+  for (const f of Array.from(input.files ?? [])) {
+    if (f.size > MAX_FILE_BYTES_UI) {
+      skipped.push(f.name)
+      continue
+    }
+    const key = `${f.name}:${f.size}`
+    if (seen.has(key)) continue
+    if (files.value.length >= MAX_FILES_UI) {
+      overCount = true
+      break
+    }
+    seen.add(key)
+    files.value.push(f)
+  }
+  if (skipped.length) ElMessage.warning(`超过 10MB 已跳过：${skipped.join('、')}`)
+  if (overCount) ElMessage.warning(`最多 ${MAX_FILES_UI} 个附件，超出部分未添加`)
+  // 组件自管已选列表：重置原生框，便于继续追加选择
+  input.value = ''
+}
+
+function removeFile(i: number) {
+  files.value.splice(i, 1)
 }
 
 async function send() {
@@ -117,7 +145,18 @@ onMounted(load)
     <el-input v-model="text" type="textarea" :rows="8" maxlength="50000" data-testid="content-input" placeholder="作业内容…" />
     <div v-if="detail.homework.allowAttachment" class="attach">
       <input ref="fileInput" type="file" multiple data-testid="file-input" @change="onFileChange" />
-      <span class="hint">单文件 ≤10MB，最多 3 个（jpg/png/pdf/doc/docx/zip）</span>
+      <span class="hint">单文件 ≤10MB，最多 10 个（jpg/png/pdf/doc/docx/zip）；可分多次选择</span>
+      <div v-if="files.length" class="picked">
+        <div
+          v-for="(f, i) in files"
+          :key="`${f.name}-${f.size}-${i}`"
+          class="picked-item"
+          :data-testid="`picked-file-${i}`"
+        >
+          <span>{{ f.name }}（{{ Math.round(f.size / 1024) }}KB）</span>
+          <el-button link type="danger" size="small" @click="removeFile(i)">移除</el-button>
+        </div>
+      </div>
     </div>
     <div class="actions">
       <el-button @click="router.push('/student/homework')">返回</el-button>
@@ -141,6 +180,16 @@ onMounted(load)
   display: flex;
   align-items: center;
   gap: 12px;
+  flex-wrap: wrap;
+}
+.picked {
+  width: 100%;
+}
+.picked-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 0;
 }
 .hint {
   color: #909399;
