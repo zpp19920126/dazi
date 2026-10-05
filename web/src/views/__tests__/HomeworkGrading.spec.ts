@@ -69,6 +69,11 @@ describe('教师作业批改页', () => {
 
     expect(mocks.get).toHaveBeenCalledWith('/homeworks/7')
     expect(wrapper.text()).toContain('第三课作业 · 2 人 · 已交 2 · 未交 0')
+    // Ruling P-5：批改页须显示作业要求与截止时间
+    const info = wrapper.find('[data-testid="homework-info"]')
+    expect(info.exists()).toBe(true)
+    expect(info.text()).toContain('完成第三课录入练习并保存截图')
+    expect(info.text()).toContain('截止时间')
     const list = wrapper.find('[data-testid="submission-list"]')
     expect(list.text()).toContain('张三')
     expect(list.text()).toContain('李四')

@@ -99,6 +99,12 @@ onMounted(load)
 <template>
   <div v-loading="loading">
     <h3>{{ header }}</h3>
+    <div v-if="detail" class="hw-brief" data-testid="homework-info">
+      <div>
+        截止时间：{{ new Date(detail.homework.dueAt).toLocaleString('zh-CN', { hour12: false }) }}
+      </div>
+      <pre class="requirement">作业要求：{{ detail.homework.content }}</pre>
+    </div>
     <div class="layout">
       <div class="list" data-testid="submission-list">
         <div
@@ -183,6 +189,15 @@ onMounted(load)
 }
 .panel {
   flex: 1;
+}
+.hw-brief {
+  margin: 8px 0 12px;
+  color: #606266;
+}
+.requirement {
+  white-space: pre-wrap;
+  margin: 4px 0 0;
+  color: #606266;
 }
 .body {
   white-space: pre-wrap;
