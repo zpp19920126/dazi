@@ -5,10 +5,21 @@ import { PointsService } from '../points/points.service.js';
 import { POINT_HOMEWORK_ONTIME } from '../points/points.constants.js';
 import { CreateHomeworkDto } from './dto/create-homework.dto.js';
 import { UpdateHomeworkDto } from './dto/update-homework.dto.js';
+import { GradeSubmissionDto } from './dto/grade-submission.dto.js';
 
 interface Actor {
   id: number;
   role: string;
+}
+
+export interface GradeRow {
+  userId: number;
+  realName: string;
+  username: string;
+  submittedAt: string | null;
+  state: '未交' | '迟交' | '按时';
+  score: number | null;
+  teacherComment: string | null;
 }
 
 @Injectable()
@@ -210,5 +221,99 @@ export class HomeworkService {
         files: s.files,
       })),
     };
+  }
+
+  /** 批改：归属=布置教师 createdBy（Ruling P-2）；comment 留空即清空，与考勤 note 同口径；不受 homework.status 限制 */
+  async grade(
+    submissionId: number,
+    dto: GradeSubmissionDto,
+    actor: { id: number; role: string },
+  ) {
+    const sub = await this.prisma.homeworkSubmission.findUnique({
+      where: { id: submissionId },
+      include: { homework: { select: { createdBy: true } } },
+    });
+    if (!sub) throw new NotFoundException('提交不存在');
+    if (sub.homework.createdBy !== actor.id) throw new ForbiddenException('仅布置教师可批改');
+    return this.prisma.homeworkSubmission.update({
+      where: { id: submissionId },
+      data: {
+        score: dto.score,
+        teacherComment: dto.comment ?? null, // 留空即清空点评，与考勤 note 同口径
+        gradedBy: actor.id,
+        gradedAt: new Date(),
+      },
+      select: { id: true, score: true },
+    });
+  }
+
+  /** 成绩名册：teacher=本人班；admin 全量只读。exportCsv=csv 时返回 CSV 字符串 */
+  async grades(
+    homeworkId: number,
+    actor: { id: number; role: string },
+    opts: { exportCsv?: string; page: number; pageSize: number },
+  ) {
+    const hw = await this.prisma.homework.findUnique({
+      where: { id: homeworkId },
+      include: { klass: { select: { id: true, name: true, teacherId: true } } },
+    });
+    if (!hw) throw new NotFoundException('作业不存在');
+    if (actor.role === 'teacher' && hw.klass.teacherId !== actor.id) {
+      throw new ForbiddenException('无权查看该作业成绩');
+    }
+    const students = await this.prisma.user.findMany({
+      where: { classId: hw.classId, role: 'student' },
+      orderBy: { id: 'asc' },
+      select: { id: true, realName: true, username: true },
+    });
+    const subs = await this.prisma.homeworkSubmission.findMany({
+      where: { homeworkId },
+      select: { userId: true, submittedAt: true, isLate: true, score: true, teacherComment: true },
+    });
+    const byUser = new Map(subs.map((s) => [s.userId, s]));
+    const rows: GradeRow[] = students.map((st) => {
+      const s = byUser.get(st.id);
+      return {
+        userId: st.id,
+        realName: st.realName,
+        username: st.username,
+        submittedAt: s ? s.submittedAt.toISOString() : null,
+        state: !s ? '未交' : s.isLate ? '迟交' : '按时',
+        score: s?.score != null ? Number(s.score) : null,
+        teacherComment: s?.teacherComment ?? null,
+      };
+    });
+    if (opts.exportCsv === 'csv') {
+      return this.gradesCsv(hw.title, rows);
+    }
+    const stats = {
+      submitted: rows.filter((r) => r.state !== '未交').length,
+      graded: rows.filter((r) => r.score != null).length,
+      late: rows.filter((r) => r.state === '迟交').length,
+      unsubmitted: rows.filter((r) => r.state === '未交').length,
+    };
+    const p = Math.max(1, Math.floor(opts.page));
+    const ps = Math.min(100, Math.max(1, Math.floor(opts.pageSize)));
+    return { list: rows.slice((p - 1) * ps, p * ps), total: rows.length, stats };
+  }
+
+  /** Excel 兼容：UTF-8 BOM 前置 + CRLF，分数保留 2 位小数（同 records.toCsv 口径） */
+  private gradesCsv(title: string, rows: GradeRow[]): string {
+    const esc = (v: string | number | null): string => {
+      const s = v == null ? '' : String(v);
+      return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const header = '姓名,用户名,提交时间,状态,分数,点评';
+    const lines = [header, ...rows.map((r) =>
+      [
+        r.realName,
+        r.username,
+        r.submittedAt ? new Date(r.submittedAt).toLocaleString('zh-CN', { hour12: false }) : '',
+        r.state,
+        r.score != null ? r.score.toFixed(2) : '',
+        r.teacherComment ?? '',
+      ].map(esc).join(','),
+    )];
+    return `\uFEFF作业：${esc(title)}\r\n` + `${lines.join('\r\n')}\r\n`;
   }
 }
