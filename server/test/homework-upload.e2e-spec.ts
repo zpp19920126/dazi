@@ -25,6 +25,7 @@ describe('homework-upload 作业提交附件 (e2e)', () => {
   let classAId = 0;
   let classBId = 0;
   let hwId = 0;
+  let fileAId = 0;
   const firstRoundKeys: string[] = [];
 
   const future = (hours: number) => new Date(Date.now() + hours * 3_600_000).toISOString();
@@ -321,5 +322,57 @@ describe('homework-upload 作业提交附件 (e2e)', () => {
     const row = res.body.data.list.find((x: { id: number }) => x.id === hwId);
     expect(row).toBeDefined();
     expect(row.submissionCount).toBe(1);
+  });
+
+  it('10. 本人下载附件 → 200：Content-Disposition 含 UTF-8 中文文件名，响应体字节数与 sizeBytes 一致', async () => {
+    const res = await submitReq(sCToken, hwId, '下载用提交', [pdf('答案.pdf')]);
+    expect(res.status).toBe(200);
+    const file = await prisma.homeworkFile.findFirst({
+      where: { submissionId: res.body.data.id },
+      orderBy: { id: 'asc' },
+    });
+    expect(file).not.toBeNull();
+    fileAId = file!.id;
+    const dl = await request(app.getHttpServer())
+      .get(`/api/files/${fileAId}/download`)
+      .set('Authorization', `Bearer ${sCToken}`)
+      .buffer();
+    expect(dl.status).toBe(200);
+    const disposition = dl.headers['content-disposition'] ?? '';
+    expect(disposition).toContain('attachment');
+    expect(disposition).toContain(`filename*=UTF-8''${encodeURIComponent('答案.pdf')}`);
+    expect(dl.body.length).toBe(file!.sizeBytes);
+  });
+
+  it('11. 布置教师与管理员下载同一文件 → 200', async () => {
+    const t = await request(app.getHttpServer())
+      .get(`/api/files/${fileAId}/download`)
+      .set('Authorization', `Bearer ${teacherToken}`)
+      .buffer();
+    expect(t.status).toBe(200);
+    expect(t.headers['content-disposition']).toContain('filename*=UTF-8\'\'');
+    const a = await request(app.getHttpServer())
+      .get(`/api/files/${fileAId}/download`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .buffer();
+    expect(a.status).toBe(200);
+  });
+
+  it('12. 越权下载 → 403；不存在的文件 id → 404', async () => {
+    // sD 为用例 7 创建的他班学生（classB），非提交者亦非布置者
+    const dLogin = await request(app.getHttpServer())
+      .post('/api/auth/login')
+      .send({ username: `sm${suffix}d`, password: 'studPass12' });
+    const dToken = dLogin.body.data.token as string;
+    const forbidden = await request(app.getHttpServer())
+      .get(`/api/files/${fileAId}/download`)
+      .set('Authorization', `Bearer ${dToken}`)
+      .buffer();
+    expect(forbidden.status).toBe(403);
+    const missing = await request(app.getHttpServer())
+      .get('/api/files/99999999/download')
+      .set('Authorization', `Bearer ${sCToken}`)
+      .buffer();
+    expect(missing.status).toBe(404);
   });
 });

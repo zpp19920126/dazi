@@ -9,7 +9,8 @@ import {
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { mkdir, rename, unlink, writeFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { existsSync } from 'node:fs';
+import { dirname, join, resolve, sep } from 'node:path';
 import { PrismaService } from '../prisma/prisma.service.js';
 import {
   ALLOWED_EXT,
@@ -159,5 +160,31 @@ export class SubmissionsService {
       }
       throw e;
     }
+  }
+
+  async getForDownload(
+    fileId: number,
+    actor: { id: number; role: string },
+  ): Promise<{ absolutePath: string; originalName: string }> {
+    const file = await this.prisma.homeworkFile.findUnique({
+      where: { id: fileId },
+      include: {
+        submission: {
+          include: { homework: { select: { createdBy: true } } },
+        },
+      },
+    });
+    if (!file) throw new NotFoundException('文件不存在');
+    const owner = actor.role === 'admin'
+      || file.submission.userId === actor.id
+      || file.submission.homework.createdBy === actor.id;
+    if (!owner) throw new ForbiddenException('无权下载该附件');
+    const abs = join(uploadRoot(), file.storedKey);
+    // 防穿越：resolve 后必须仍在 uploadRoot 内
+    if (!resolve(abs).startsWith(resolve(uploadRoot()) + sep)) {
+      throw new ForbiddenException('非法文件路径');
+    }
+    if (!existsSync(abs)) throw new NotFoundException('文件已丢失');
+    return { absolutePath: abs, originalName: file.originalName };
   }
 }
