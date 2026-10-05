@@ -126,7 +126,7 @@ export const routes: RouteRecordRaw[] = [
         path: 'homeworks',
         name: 'teacher-homeworks',
         component: () => import('@/views/teacher/HomeworkList.vue'),
-        meta: { title: '作业管理', roles: ['teacher', 'admin'] },
+        meta: { title: '作业管理', roles: ['teacher'] },
       },
     ],
   },
