@@ -72,4 +72,20 @@ describe('开课考勤页', () => {
     expect(wrapper.text()).toContain('结 课')
     wrapper.unmount()
   })
+
+  it('开课超过4小时显示已上时长与超4小时提醒', async () => {
+    const longAgo = new Date(Date.now() - 5 * 3_600_000).toISOString()
+    mocks.get
+      .mockResolvedValueOnce(classesPayload)
+      .mockResolvedValueOnce({
+        list: [{ id: 7, classId: 3, status: 'open', period: '第一节', startedAt: longAgo, endedAt: null }],
+        total: 1,
+      })
+      .mockResolvedValueOnce([])
+    const wrapper = mount(SessionAttendance, { global: { plugins: [ElementPlus] } })
+    await flushPromises()
+    expect(wrapper.text()).toContain('已上 5 小时')
+    expect(wrapper.text()).toContain('已超4小时')
+    wrapper.unmount()
+  })
 })

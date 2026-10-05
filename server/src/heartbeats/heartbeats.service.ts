@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { SessionsService } from '../sessions/sessions.service.js';
@@ -14,10 +14,16 @@ export class HeartbeatsService {
     private readonly sessions: SessionsService,
   ) {}
 
+  private readonly logger = new Logger(HeartbeatsService.name);
+
   /** 学生实时状态上报（UPSERT：每人仅一行，新值覆盖） */
   async upsert(dto: HeartbeatDto, user: { id: number }) {
-    // 考勤自动打卡：开课瞬间已在线的学生经心跳补打卡（幂等）
-    await this.sessions.tryClockIn(user.id);
+    // 考勤自动打卡：失败绝不影响心跳上报（记日志吞掉，与登录钩子同构）
+    try {
+      await this.sessions.tryClockIn(user.id);
+    } catch (e) {
+      this.logger.warn(`考勤补打卡失败 user=${user.id}: ${String(e)}`);
+    }
     const data = {
       taskId: dto.taskId ?? null,
       status: dto.status,

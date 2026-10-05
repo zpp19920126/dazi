@@ -101,6 +101,14 @@ function fmtTime(iso: string | null): string {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 }
 
+// 已上时长；超 4 小时仅提醒不自动结课（机房拖堂常见，规格 §5.5）
+function elapsed(s: Session): { text: string; over: boolean } {
+  const ms = Date.now() - new Date(s.startedAt).getTime()
+  const h = Math.floor(ms / 3_600_000)
+  const m = Math.floor((ms % 3_600_000) / 60_000)
+  return { text: `已上 ${h} 小时 ${m} 分`, over: ms > 4 * 3_600_000 }
+}
+
 onMounted(async () => {
   const data = await request.get<{ list: Klass[] }>('/classes')
   classes.value = data.list
@@ -129,8 +137,10 @@ onBeforeUnmount(() => {
       </el-select>
       <template v-if="openSession">
         <span class="info">
-          ● 正在上课 {{ openSession.period ?? '' }} · 开课于 {{ fmtTime(openSession.startedAt) }}
+          ● 正在上课 {{ openSession.period ?? '' }} · 开课于 {{ fmtTime(openSession.startedAt) }} ·
+          {{ elapsed(openSession).text }}
         </span>
+        <el-tag v-if="elapsed(openSession).over" type="warning" size="small">已超4小时</el-tag>
         <el-button type="danger" @click="closeClass">结 课</el-button>
       </template>
       <el-button v-else type="primary" :disabled="!classId" @click="openClass">开 课</el-button>

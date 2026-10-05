@@ -211,4 +211,11 @@ describe('sessions 模块 (e2e)', () => {
     const res = await openSession({ classId: classAId }, sToken);
     expect(res.status).toBe(403);
   });
+
+  it('10. page 非法字符串 → 400（ParseIntPipe，NaN 防护）', async () => {
+    const res = await request(app.getHttpServer())
+      .get(`/api/sessions?classId=${classAId}&page=abc`)
+      .set('Authorization', `Bearer ${teacherToken}`);
+    expect(res.status).toBe(400);
+  });
 });

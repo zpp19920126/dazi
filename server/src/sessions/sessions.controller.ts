@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Param, ParseIntPipe, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, DefaultValuePipe, Get, HttpCode, HttpStatus, Param, ParseIntPipe, Patch, Post, Query } from '@nestjs/common';
 import { CurrentUser } from '../auth/decorators/current-user.decorator.js';
 import { Roles } from '../auth/decorators/roles.decorator.js';
 import { OpenSessionDto } from './dto/open-session.dto.js';
@@ -26,11 +26,11 @@ export class SessionsController {
   @Roles('teacher', 'admin')
   list(
     @Query('classId', ParseIntPipe) classId: number,
-    @Query('page') page = '1',
-    @Query('pageSize') pageSize = '20',
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
+    @Query('pageSize', new DefaultValuePipe(20), ParseIntPipe) pageSize: number,
     @CurrentUser() user: { id: number; role: string },
   ) {
-    return this.sessionsService.list(classId, Number(page), Number(pageSize), user);
+    return this.sessionsService.list(classId, page, pageSize, user);
   }
 
   @Get('sessions/:id/attendance')

@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import bcrypt from 'bcryptjs';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -14,6 +14,8 @@ export class AuthService {
     private readonly sessions: SessionsService,
   ) {}
 
+  private readonly logger = new Logger(AuthService.name);
+
   async login(dto: LoginDto) {
     const user = await this.prisma.user.findUnique({ where: { username: dto.username } });
     if (!user || !(await bcrypt.compare(dto.password, user.passwordHash))) {
@@ -26,7 +28,7 @@ export class AuthService {
       try {
         await this.sessions.tryClockIn(user.id);
       } catch (e) {
-        console.error('[tryClockIn]', e);
+        this.logger.warn(`登录打卡失败 user=${user.id}: ${String(e)}`);
       }
     }
     return {

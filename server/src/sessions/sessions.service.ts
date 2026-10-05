@@ -45,7 +45,7 @@ export class SessionsService {
     });
   }
 
-  /** 结课：置 closed 并结算全勤（幂等） */
+  /** 结课：先幂等结算全勤，最后置 closed —— 中途崩溃课次仍 open，重跑结课可补发遗漏奖励 */
   async close(sessionId: number, teacher: Actor) {
     const session = await this.prisma.classSession.findUnique({ where: { id: sessionId } });
     if (!session) throw new NotFoundException('课次不存在');
@@ -53,11 +53,6 @@ export class SessionsService {
       throw new ForbiddenException('无权操作该课次');
     }
     if (session.status === 'closed') throw new ConflictException('课次已结束');
-
-    const updated = await this.prisma.classSession.update({
-      where: { id: sessionId },
-      data: { status: 'closed', endedAt: new Date() },
-    });
 
     const present = await this.prisma.attendance.findMany({
       where: { sessionId, status: 'present' },
@@ -73,11 +68,16 @@ export class SessionsService {
         reason: `全勤 · ${day} ${session.period ?? ''}`.trim(),
       });
     }
-    return updated;
+    return this.prisma.classSession.update({
+      where: { id: sessionId },
+      data: { status: 'closed', endedAt: new Date() },
+    });
   }
 
   /** 班级课次分页（新→旧） */
   async list(classId: number, page: number, pageSize: number, teacher: Actor) {
+    const p = Math.max(1, Math.floor(page));
+    const ps = Math.min(100, Math.max(1, Math.floor(pageSize)));
     const klass = await this.prisma.class.findUnique({ where: { id: classId } });
     if (!klass) throw new NotFoundException('班级不存在');
     if (teacher.role !== 'admin' && klass.teacherId !== teacher.id) {
@@ -88,12 +88,12 @@ export class SessionsService {
       this.prisma.classSession.findMany({
         where,
         orderBy: { id: 'desc' },
-        skip: (page - 1) * pageSize,
-        take: pageSize,
+        skip: (p - 1) * ps,
+        take: ps,
       }),
       this.prisma.classSession.count({ where }),
     ]);
-    return { list, total, page, pageSize };
+    return { list, total, page: p, pageSize: ps };
   }
 
   /** 自动打卡：学生登录/心跳时机的进程内直调；幂等、永不抛业务异常以外的错 */
