@@ -65,6 +65,18 @@ export const routes: RouteRecordRaw[] = [
         component: ProfileView,
         meta: { roles: ['student'], title: '个人中心' },
       },
+      {
+        path: 'homework',
+        name: 'student-homework',
+        component: () => import('@/views/student/MyHomework.vue'),
+        meta: { title: '我的作业', roles: ['student'] },
+      },
+      {
+        path: 'homework/:id',
+        name: 'student-homework-submit',
+        component: () => import('@/views/student/HomeworkSubmit.vue'),
+        meta: { title: '作业提交', roles: ['student'] },
+      },
     ],
   },
   {

@@ -12,6 +12,7 @@ export const studentMenus: MenuItem[] = [
   { path: '/student/tasks', label: '我的任务' },
   { path: '/student/typing', label: '打字练习' },
   { path: '/student/records', label: '我的成绩' },
+  { path: '/student/homework', label: '我的作业' },
   { path: '/student/profile', label: '个人中心' },
 ]
 
