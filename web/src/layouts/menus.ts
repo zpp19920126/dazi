@@ -24,7 +24,10 @@ export const teacherMenus: MenuItem[] = [
   { path: '/teacher/grades', label: '成绩查询' },
   {
     label: '课堂管理',
-    children: [{ path: '/teacher/attendance', label: '开课考勤' }],
+    children: [
+      { path: '/teacher/attendance', label: '开课考勤' },
+      { path: '/teacher/homeworks', label: '作业管理' },
+    ],
   },
 ]
 
