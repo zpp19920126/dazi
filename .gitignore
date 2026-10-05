@@ -6,3 +6,4 @@ web/dist/
 .worktrees/
 *.log
 *.tsbuildinfo
+server/uploads/
