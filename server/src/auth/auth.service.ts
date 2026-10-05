@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/
 import { JwtService } from '@nestjs/jwt';
 import bcrypt from 'bcryptjs';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { SessionsService } from '../sessions/sessions.service.js';
 import { ChangePasswordDto } from './dto/change-password.dto.js';
 import { LoginDto } from './dto/login.dto.js';
 
@@ -10,6 +11,7 @@ export class AuthService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
+    private readonly sessions: SessionsService,
   ) {}
 
   async login(dto: LoginDto) {
@@ -19,6 +21,14 @@ export class AuthService {
     }
     if (user.status === 'disabled') throw new UnauthorizedException('账号已停用');
     await this.prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
+    // 考勤自动打卡：失败绝不影响登录（记日志吞掉）
+    if (user.role === 'student') {
+      try {
+        await this.sessions.tryClockIn(user.id);
+      } catch (e) {
+        console.error('[tryClockIn]', e);
+      }
+    }
     return {
       token: this.jwt.sign({ sub: user.id, role: user.role }),
       user: {

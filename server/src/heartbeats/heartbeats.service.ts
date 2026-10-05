@@ -1,6 +1,7 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { SessionsService } from '../sessions/sessions.service.js';
 import { HeartbeatDto } from './dto/heartbeat.dto.js';
 
 /** 在线判定窗口：心跳更新时间在 60 秒内视为在线 */
@@ -8,10 +9,15 @@ const ONLINE_WINDOW_MS = 60_000;
 
 @Injectable()
 export class HeartbeatsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly sessions: SessionsService,
+  ) {}
 
   /** 学生实时状态上报（UPSERT：每人仅一行，新值覆盖） */
-  upsert(dto: HeartbeatDto, user: { id: number }) {
+  async upsert(dto: HeartbeatDto, user: { id: number }) {
+    // 考勤自动打卡：开课瞬间已在线的学生经心跳补打卡（幂等）
+    await this.sessions.tryClockIn(user.id);
     const data = {
       taskId: dto.taskId ?? null,
       status: dto.status,

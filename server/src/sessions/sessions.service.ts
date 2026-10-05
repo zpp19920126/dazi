@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { PointsService } from '../points/points.service.js';
 import { POINT_ATTENDANCE } from '../points/points.constants.js';
 import { OpenSessionDto } from './dto/open-session.dto.js';
+import { LATE_THRESHOLD_MINUTES } from './sessions.constants.js';
 
 interface Actor { id: number; role: string }
 
@@ -92,5 +93,33 @@ export class SessionsService {
       this.prisma.classSession.count({ where }),
     ]);
     return { list, total, page, pageSize };
+  }
+
+  /** 自动打卡：学生登录/心跳时机的进程内直调；幂等、永不抛业务异常以外的错 */
+  async tryClockIn(userId: number): Promise<void> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true, classId: true },
+    });
+    if (!user || user.role !== 'student' || !user.classId) return;
+    const session = await this.prisma.classSession.findFirst({
+      where: { classId: user.classId, status: 'open' },
+    });
+    if (!session) return;
+    const now = new Date();
+    const status = now.getTime() - session.startedAt.getTime() <= LATE_THRESHOLD_MINUTES * 60_000
+      ? 'present'
+      : 'late';
+    // 条件里带 session:{status:'open'}：与结课并发时以结课为准（结课先行则此更新 0 行）
+    await this.prisma.attendance.updateMany({
+      where: {
+        sessionId: session.id,
+        userId,
+        corrected: false,
+        checkInAt: null,
+        session: { status: 'open' },
+      },
+      data: { checkInAt: now, status },
+    });
   }
 }
