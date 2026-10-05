@@ -22,6 +22,10 @@ export const teacherMenus: MenuItem[] = [
   { path: '/teacher/texts', label: '自建文章' },
   { path: '/teacher/tasks', label: '任务管理' },
   { path: '/teacher/grades', label: '成绩查询' },
+  {
+    label: '课堂管理',
+    children: [{ path: '/teacher/attendance', label: '开课考勤' }],
+  },
 ]
 
 export const adminMenus: MenuItem[] = [

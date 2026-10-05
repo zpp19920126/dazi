@@ -15,8 +15,8 @@ export default defineConfig({
     // 监听所有网卡，允许手机/局域网设备访问
     host: true,
     proxy: {
-      // 开发环境将 /api 代理到 NestJS 后端（3000 端口）
-      '/api': 'http://localhost:3000',
+      // 开发环境将 /api 代理到 NestJS 后端（默认 3000，可用 VITE_API_TARGET 覆盖）
+      '/api': process.env.VITE_API_TARGET ?? 'http://localhost:3000',
     },
   },
   test: {

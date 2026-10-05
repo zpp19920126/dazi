@@ -16,6 +16,7 @@ import TeacherMyTextsView from '@/views/teacher/MyTexts.vue'
 import TeacherTaskListView from '@/views/teacher/TaskList.vue'
 import TeacherLiveBoardView from '@/views/teacher/LiveBoard.vue'
 import TeacherGradesView from '@/views/teacher/Grades.vue'
+import TeacherSessionAttendanceView from '@/views/teacher/SessionAttendance.vue'
 import AdminOverviewView from '@/views/admin/Overview.vue'
 import AdminTeacherAccountsView from '@/views/admin/TeacherAccounts.vue'
 import AdminAllTextsView from '@/views/admin/AllTexts.vue'
@@ -114,6 +115,12 @@ export const routes: RouteRecordRaw[] = [
         name: 'teacher-grades',
         component: TeacherGradesView,
         meta: { roles: ['teacher'], title: '成绩查询' },
+      },
+      {
+        path: 'attendance',
+        name: 'teacher-attendance',
+        component: TeacherSessionAttendanceView,
+        meta: { roles: ['teacher'], title: '开课考勤' },
       },
     ],
   },
