@@ -4,7 +4,8 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { PointsService } from '../points/points.service.js';
 import { POINT_ATTENDANCE } from '../points/points.constants.js';
 import { OpenSessionDto } from './dto/open-session.dto.js';
-import { LATE_THRESHOLD_MINUTES } from './sessions.constants.js';
+import { CorrectAttendanceDto } from './dto/correct-attendance.dto.js';
+import { LATE_THRESHOLD_MINUTES, SEATED_WINDOW_MS } from './sessions.constants.js';
 
 interface Actor { id: number; role: string }
 
@@ -120,6 +121,55 @@ export class SessionsService {
         session: { status: 'open' },
       },
       data: { checkInAt: now, status },
+    });
+  }
+
+  /** 考勤名单（含 heartbeat 在座辅助，只读不改考勤） */
+  async getAttendance(sessionId: number, teacher: Actor) {
+    const session = await this.prisma.classSession.findUnique({ where: { id: sessionId } });
+    if (!session) throw new NotFoundException('课次不存在');
+    if (teacher.role !== 'admin' && session.teacherId !== teacher.id) {
+      throw new ForbiddenException('无权查看该课次');
+    }
+    const rows = await this.prisma.attendance.findMany({
+      where: { sessionId },
+      include: { user: { select: { realName: true, username: true } } },
+      orderBy: { id: 'asc' },
+    });
+    const hbIds = rows.map((r) => r.userId);
+    const hbs = await this.prisma.heartbeat.findMany({ where: { userId: { in: hbIds } } });
+    const hbMap = new Map(hbs.map((h) => [h.userId, h]));
+    const now = Date.now();
+    return rows.map((r) => {
+      const hb = hbMap.get(r.userId);
+      return {
+        id: r.id,
+        userId: r.userId,
+        realName: r.user.realName,
+        username: r.user.username,
+        checkInAt: r.checkInAt,
+        status: r.status,
+        corrected: r.corrected,
+        note: r.note,
+        seated: !!hb && now - hb.updatedAt.getTime() < SEATED_WINDOW_MS,
+      };
+    });
+  }
+
+  /** 教师修正考勤：置 corrected 防自动打卡覆盖；结课课次锁定不可修正 */
+  async correct(attendanceId: number, dto: CorrectAttendanceDto, teacher: Actor) {
+    const row = await this.prisma.attendance.findUnique({
+      where: { id: attendanceId },
+      include: { session: { select: { teacherId: true, status: true } } },
+    });
+    if (!row) throw new NotFoundException('考勤记录不存在');
+    if (teacher.role !== 'admin' && row.session.teacherId !== teacher.id) {
+      throw new ForbiddenException('无权修正该考勤');
+    }
+    if (row.session.status === 'closed') throw new ConflictException('课次已结束，不可修正');
+    return this.prisma.attendance.update({
+      where: { id: attendanceId },
+      data: { status: dto.status, note: dto.note ?? null, corrected: true },
     });
   }
 }
