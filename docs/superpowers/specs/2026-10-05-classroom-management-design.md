@@ -186,7 +186,7 @@
 ```
 布置   教师 POST /homeworks（标题/要求/班级/截止时间/附件开关）
 提交   学生 POST /homeworks/:id/submissions（multipart：textContent + files[]）
-       校验：本班学生、published、单文件≤10MB、≤3 个、扩展名白名单(jpg jpeg png pdf doc docx zip)
+       校验：本班学生、published、单文件≤10MB、≤10 个（2026-10-06 备注：原 3 个，因多图作业需求上调）、扩展名白名单(jpg jpeg png pdf doc docx zip)
        落盘流程：multer 先写 staging 目录 → DB 事务(覆盖旧提交:删旧行旧文件+插新) 提交成功
        → rename 到正式目录；失败则清理 staging，绝不产生"有记录无文件/有文件无记录"
        截止前重复提交整体覆盖，以最后一次为准；截止后提交接受但 is_late=1（补交）
@@ -303,7 +303,7 @@
 
 ## 8. 错误处理与安全
 
-- **上传**：multer limits 单文件 10MB/次 3 个；扩展名白名单服务端校验（不看 mime 猜类型）；UUID 重命名存储，杜绝路径穿越与执行类扩展；文件存于 Nginx 静态根之外，仅经鉴权接口流式下载。
+- **上传**：multer limits 单文件 10MB/次 10 个（2026-10-06 备注：原 3 个，因多图作业需求上调）；扩展名白名单服务端校验（不看 mime 猜类型）；UUID 重命名存储，杜绝路径穿越与执行类扩展；文件存于 Nginx 静态根之外，仅经鉴权接口流式下载。
 - **状态机守卫**：closed 课次拒绝打卡与修正（409）；closed 作业仍可补交（标 is_late）但不可再批改关闭。
 - **归属**：所有新端点 Service 层校验班级归属，模式同现有 classes/records。
 - **并发**：开课唯一 open 用部分校验+事务；积分唯一键防自动重复；提交覆盖用事务+staging 补偿删除。
