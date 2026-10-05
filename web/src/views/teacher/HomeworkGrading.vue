@@ -56,6 +56,14 @@ const expandedIds = ref<number[]>([])
 const imgUrls = reactive<Record<number, string>>({})
 const imgRequested = new Set<number>()
 
+const detailRow = ref<Row | null>(null)
+const detailVisible = ref(false)
+function openDetail(r: Row) {
+  if (!r.submissionId) return
+  detailRow.value = r
+  detailVisible.value = true
+}
+
 // 服务端快照：脏检查/失败回滚/轮询合并的基准
 const snap = new Map<number, { score: number | null; comment: string }>()
 const savingIds = new Set<number>()
@@ -93,6 +101,11 @@ function applyGrades(g: GradesData) {
   for (const r of g.list) snap.set(r.userId, { score: r.score, comment: r.teacherComment ?? '' })
   rows.value = next
   meta.value = { total: g.total, stats: g.stats }
+  // 弹窗打开时重绑到新行对象，随轮询刷新内容
+  if (detailRow.value) {
+    const uid = detailRow.value.userId
+    detailRow.value = next.find((r) => r.userId === uid) ?? null
+  }
   syncImages(next)
 }
 
@@ -304,11 +317,57 @@ onBeforeUnmount(() => {
             />
           </template>
         </el-table-column>
+        <el-table-column label="详情" width="90" fixed="right">
+          <template #default="{ row }">
+            <el-button
+              link
+              type="primary"
+              size="small"
+              :data-testid="`detail-${row.userId}`"
+              :disabled="!row.submissionId"
+              @click="openDetail(row)"
+            >
+              查看详情
+            </el-button>
+          </template>
+        </el-table-column>
         <template #empty>
           <el-empty description="暂无学生" />
         </template>
       </el-table>
     </div>
+
+    <el-dialog v-model="detailVisible" width="720px" :title="detailRow ? `${detailRow.realName}（${detailRow.username}）的作业详情` : ''">
+      <div v-if="detailRow" data-testid="detail-dialog">
+        <p class="detail-meta">
+          {{ detailRow.realName }}（{{ detailRow.username }}）· {{ fmt(detailRow.submittedAt) }} ·
+          {{ detailRow.state }}
+          <template v-if="detailRow.score != null"> · 得分 {{ detailRow.score }}</template>
+        </p>
+        <pre class="full-text">{{ detailRow.textContent || '（无文本内容）' }}</pre>
+        <div v-if="detailRow.files.length" class="detail-files">
+          <template v-for="f in detailRow.files" :key="f.id">
+            <div v-if="isImage(f)" class="dthumb" :data-testid="`dthumb-${f.id}`">
+              <el-image
+                :src="imgUrls[f.id] || ''"
+                fit="contain"
+                class="dbig"
+                :preview-src-list="previewList(detailRow)"
+                :initial-index="imageIndex(detailRow, f.id)"
+                preview-teleported
+                hide-on-click-modal
+              />
+              <span v-if="imgUrls[f.id] === ''" class="muted">加载失败</span>
+              <span v-else class="fname">{{ f.originalName }}</span>
+            </div>
+            <el-button v-else link type="primary" :data-testid="`dfile-dl-${f.id}`" @click="downloadFile(f)">
+              {{ f.originalName }}（{{ Math.round(f.sizeBytes / 1024) }}KB）
+            </el-button>
+          </template>
+        </div>
+        <p v-else class="muted">无附件</p>
+      </div>
+    </el-dialog>
   </div>
 </template>
 
@@ -352,5 +411,40 @@ onBeforeUnmount(() => {
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+.detail-meta {
+  color: #909399;
+  margin: 0 0 8px;
+}
+.full-text {
+  white-space: pre-wrap;
+  max-height: 320px;
+  overflow: auto;
+  background: #f5f7fa;
+  padding: 12px;
+  border-radius: 4px;
+  margin: 0 0 12px;
+}
+.detail-files {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-start;
+}
+.dthumb {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.dbig {
+  width: 160px;
+  height: 120px;
+  border: 1px solid #ebeef5;
+  border-radius: 4px;
+}
+.fname {
+  font-size: 12px;
+  color: #606266;
 }
 </style>

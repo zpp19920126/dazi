@@ -217,4 +217,30 @@ describe('教师批改全班表格页', () => {
       vi.useRealTimers()
     }
   })
+
+  it('行内查看详情弹窗：完整文本+全部附件（图片大图/文件可下载）；未交行按钮禁用', async () => {
+    const wrapper = mount(HomeworkGrading, {
+      global: { plugins: [ElementPlus], stubs: { teleport: true } },
+      attachTo: document.body,
+    })
+    await flushPromises()
+
+    expect((wrapper.find('[data-testid="detail-11"]').element as HTMLButtonElement).disabled).toBe(true)
+
+    await wrapper.find('[data-testid="detail-9"]').trigger('click')
+    await flushPromises()
+    const dlg = wrapper.find('[data-testid="detail-dialog"]')
+    expect(dlg.exists()).toBe(true)
+    expect(dlg.text()).toContain('张三')
+    expect(dlg.text()).toContain('第一版正文')
+    expect(dlg.find('[data-testid="dthumb-31"]').exists()).toBe(true)
+
+    // 李四：pdf 走弹窗内下载按钮
+    await wrapper.find('[data-testid="detail-10"]').trigger('click')
+    await flushPromises()
+    const dlg2 = wrapper.find('[data-testid="detail-dialog"]')
+    expect(dlg2.text()).toContain('迟交正文')
+    expect(dlg2.find('[data-testid="dfile-dl-32"]').exists()).toBe(true)
+    wrapper.unmount()
+  })
 })
