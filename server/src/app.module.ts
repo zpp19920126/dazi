@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
 import { AuthModule } from './auth/auth.module.js';
@@ -17,12 +18,14 @@ import { HeartbeatsModule } from './heartbeats/heartbeats.module.js';
 import { StatsModule } from './stats/stats.module.js';
 import { PointsModule } from './points/points.module.js';
 import { SessionsModule } from './sessions/sessions.module.js';
+import { HomeworkModule } from './homework/homework.module.js';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor.js';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter.js';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    ScheduleModule.forRoot(),
     PrismaModule,
     AuthModule,
     UsersModule,
@@ -34,6 +37,7 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter.js';
     StatsModule,
     PointsModule,
     SessionsModule,
+    HomeworkModule,
   ],
   controllers: [AppController],
   providers: [
