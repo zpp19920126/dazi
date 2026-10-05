@@ -3,5 +3,6 @@ dist/
 server/.env
 web/dist/
 .superpowers/
+.worktrees/
 *.log
 *.tsbuildinfo
