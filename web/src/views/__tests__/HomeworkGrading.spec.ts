@@ -5,7 +5,6 @@ import ElementPlus from 'element-plus'
 const mocks = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn(), patch: vi.fn() }))
 vi.mock('@/utils/request', () => ({ default: mocks }))
 
-// 路由参数 hwId=7：mock useRoute 的 params，useRouter 仅占位
 const routeMock = vi.hoisted(() => ({ params: { id: '7' } }))
 vi.mock('vue-router', () => ({
   useRoute: () => routeMock,
@@ -22,98 +21,200 @@ const detailPayload = {
     dueAt: '2026-10-05T10:00:00.000Z',
     status: 'closed',
   },
-  studentCount: 2,
-  submissions: [
-    {
-      id: 21,
-      userId: 9,
-      realName: '张三',
-      username: 's009',
-      textContent: '第一版正文',
-      submittedAt: '2026-10-05T09:00:00.000Z',
-      isLate: false,
-      score: '92.50',
-      teacherComment: '很好',
-      files: [{ id: 31, originalName: '截图.pdf', sizeBytes: 1024 }],
-    },
-    {
-      id: 22,
-      userId: 10,
-      realName: '李四',
-      username: 's010',
-      textContent: '迟交正文',
-      submittedAt: '2026-10-05T11:00:00.000Z',
-      isLate: true,
-      score: null,
-      teacherComment: null,
-      files: [],
-    },
-  ],
+  studentCount: 3,
+  submissions: [],
   mySubmission: null,
 }
 
-describe('教师作业批改页', () => {
-  beforeEach(() => {
-    mocks.get.mockReset()
-    mocks.post.mockReset()
-    mocks.patch.mockReset()
-    // 兜底：保存批改后的重新 GET detail、PATCH 返回值都走 mockResolvedValue，
-    // 避免 Once 队列耗尽返回 undefined
-    mocks.get.mockResolvedValue(detailPayload)
-    mocks.patch.mockResolvedValue({})
-  })
+// GET /homeworks/7/grades?pageSize=100 契约（T-G1 后端增补字段后的行形状）
+const gradesPayload = {
+  list: [
+    {
+      userId: 9,
+      realName: '张三',
+      username: 's009',
+      submittedAt: '2026-10-05T09:00:00.000Z',
+      state: '按时',
+      score: 92.5,
+      teacherComment: '很好',
+      submissionId: 21,
+      textContent: '第一版正文',
+      files: [{ id: 31, originalName: '截图.jpg', mimeType: 'image/jpeg', sizeBytes: 1024 }],
+    },
+    {
+      userId: 10,
+      realName: '李四',
+      username: 's010',
+      submittedAt: '2026-10-05T11:00:00.000Z',
+      state: '迟交',
+      score: null,
+      teacherComment: null,
+      submissionId: 22,
+      textContent: '迟交正文',
+      files: [{ id: 32, originalName: '报告.pdf', mimeType: 'application/pdf', sizeBytes: 2048 }],
+    },
+    {
+      userId: 11,
+      realName: '王五',
+      username: 's011',
+      submittedAt: null,
+      state: '未交',
+      score: null,
+      teacherComment: null,
+      submissionId: null,
+      textContent: null,
+      files: [],
+    },
+  ],
+  total: 3,
+  stats: { submitted: 2, graded: 1, late: 1, unsubmitted: 1 },
+}
 
-  it('挂载后拉取详情并渲染头部统计与提交列表', async () => {
-    const wrapper = mount(HomeworkGrading, { global: { plugins: [ElementPlus] } })
+const clone = (v: unknown) => JSON.parse(JSON.stringify(v))
+
+beforeEach(() => {
+  mocks.get.mockReset()
+  mocks.post.mockReset()
+  mocks.patch.mockReset()
+  mocks.get.mockImplementation(async (url: string) => {
+    if (url === '/homeworks/7') return clone(detailPayload)
+    if (url === '/homeworks/7/grades?pageSize=100') return clone(gradesPayload)
+    if (url.startsWith('/files/')) return new Blob(['x'], { type: 'image/jpeg' })
+    return undefined
+  })
+  mocks.patch.mockResolvedValue({})
+  window.URL.createObjectURL = vi.fn(() => 'blob:mock')
+  window.URL.revokeObjectURL = vi.fn()
+})
+
+function mountPage() {
+  return mount(HomeworkGrading, { global: { plugins: [ElementPlus] }, attachTo: document.body })
+}
+
+describe('教师批改全班表格页', () => {
+  it('挂载拉取详情+全班名单：3人同屏含未交，头部统计与P-5信息条', async () => {
+    const wrapper = mountPage()
     await flushPromises()
 
     expect(mocks.get).toHaveBeenCalledWith('/homeworks/7')
-    expect(wrapper.text()).toContain('第三课作业 · 2 人 · 已交 2 · 未交 0')
-    // Ruling P-5：批改页须显示作业要求与截止时间
+    expect(mocks.get).toHaveBeenCalledWith('/homeworks/7/grades?pageSize=100')
+    const text = wrapper.text()
+    expect(text).toContain('张三')
+    expect(text).toContain('李四')
+    expect(text).toContain('王五')
+    expect(text).toContain('未交 1')
     const info = wrapper.find('[data-testid="homework-info"]')
     expect(info.exists()).toBe(true)
     expect(info.text()).toContain('完成第三课录入练习并保存截图')
     expect(info.text()).toContain('截止时间')
-    const list = wrapper.find('[data-testid="submission-list"]')
-    expect(list.text()).toContain('张三')
-    expect(list.text()).toContain('李四')
     wrapper.unmount()
   })
 
-  it('选择迟交未批改提交保存批改并重新拉取详情', async () => {
-    const wrapper = mount(HomeworkGrading, { global: { plugins: [ElementPlus] } })
+  it('未交学生行：分数与点评输入禁用', async () => {
+    const wrapper = mountPage()
     await flushPromises()
 
-    await wrapper.find('[data-testid="pick-22"]').trigger('click')
-    await flushPromises()
-    expect(wrapper.find('[data-testid="grade-panel"]').text()).toContain('迟交正文')
-
-    await wrapper.find('[data-testid="grade-score"] input').setValue('88')
-    await wrapper.find('[data-testid="grade-save"]').trigger('click')
-    await flushPromises()
-
-    expect(mocks.patch).toHaveBeenCalledWith('/homework/submissions/22/grade', {
-      score: 88,
-      comment: undefined,
-    })
-    // 保存后组件重新 GET 详情：挂载 1 次 + 保存后 1 次
-    expect(mocks.get).toHaveBeenCalledTimes(2)
-    expect(mocks.get).toHaveBeenNthCalledWith(2, '/homeworks/7')
+    const scoreInput = wrapper.find('[data-testid="score-11"] input')
+    expect((scoreInput.element as HTMLInputElement).disabled).toBe(true)
+    const commentArea = wrapper.find('textarea[data-testid="comment-11"]')
+    expect((commentArea.element as HTMLTextAreaElement).disabled).toBe(true)
     wrapper.unmount()
   })
 
-  it('选择已批改提交回显分数点评与附件下载入口', async () => {
-    const wrapper = mount(HomeworkGrading, { global: { plugins: [ElementPlus] } })
+  it('已批行回显92.5；改95失焦→PATCH submissions/21 {score:95,comment:很好}；无改动再失焦不发请求', async () => {
+    const wrapper = mountPage()
     await flushPromises()
 
-    await wrapper.find('[data-testid="pick-21"]').trigger('click')
-    await flushPromises()
-
-    const scoreInput = wrapper.find('[data-testid="grade-score"] input')
+    const scoreInput = wrapper.find('[data-testid="score-9"] input')
     expect((scoreInput.element as HTMLInputElement).value).toBe('92.5')
-    const commentArea = wrapper.find('textarea[data-testid="grade-comment"]')
-    expect((commentArea.element as HTMLTextAreaElement).value).toBe('很好')
-    expect(wrapper.find('[data-testid="file-dl-31"]').exists()).toBe(true)
+
+    await scoreInput.setValue('95')
+    await scoreInput.trigger('blur')
+    await flushPromises()
+    expect(mocks.patch).toHaveBeenCalledWith('/homework/submissions/21/grade', {
+      score: 95,
+      comment: '很好',
+    })
+
+    mocks.patch.mockClear()
+    await scoreInput.trigger('blur')
+    await flushPromises()
+    expect(mocks.patch).not.toHaveBeenCalled()
     wrapper.unmount()
+  })
+
+  it('点评失焦随分数一并保存（服务端点评单字段为空时省略即清空）', async () => {
+    const wrapper = mountPage()
+    await flushPromises()
+
+    await wrapper.find('textarea[data-testid="comment-9"]').setValue('很棒')
+    await wrapper.find('textarea[data-testid="comment-9"]').trigger('blur')
+    await flushPromises()
+    expect(mocks.patch).toHaveBeenCalledWith('/homework/submissions/21/grade', {
+      score: 92.5,
+      comment: '很棒',
+    })
+    wrapper.unmount()
+  })
+
+  it('图片附件走鉴权下载拉blob并渲染缩略图；非图片仅显示文件名可下载', async () => {
+    const wrapper = mountPage()
+    await flushPromises()
+
+    expect(mocks.get).toHaveBeenCalledWith(
+      '/files/31/download',
+      expect.objectContaining({ responseType: 'blob' }),
+    )
+    const thumb = wrapper.find('[data-testid="thumb-31"]')
+    expect(thumb.exists()).toBe(true)
+    expect(thumb.find('img').attributes('src')).toBe('blob:mock')
+
+    // 非图片不拉缩略图，点击走下载
+    expect(mocks.get).not.toHaveBeenCalledWith(
+      '/files/32/download',
+      expect.objectContaining({ responseType: 'blob' }),
+    )
+    await wrapper.find('[data-testid="file-dl-32"]').trigger('click')
+    await flushPromises()
+    expect(mocks.get).toHaveBeenCalledWith(
+      '/files/32/download',
+      expect.objectContaining({ responseType: 'blob' }),
+    )
+    wrapper.unmount()
+  })
+
+  it('30秒轮询刷新名单；输入中的未保存格子不被覆盖', async () => {
+    vi.useFakeTimers()
+    try {
+      const wrapper = mountPage()
+      await flushPromises()
+      const gradesCalls = () =>
+        mocks.get.mock.calls.filter(([u]) => u === '/homeworks/7/grades?pageSize=100').length
+      expect(gradesCalls()).toBe(1)
+
+      await vi.advanceTimersByTimeAsync(30_000)
+      await flushPromises()
+      expect(gradesCalls()).toBe(2)
+
+      const comment = wrapper.find('textarea[data-testid="comment-9"]')
+      await comment.setValue('草稿点评')
+      await vi.advanceTimersByTimeAsync(30_000)
+      await flushPromises()
+      expect(gradesCalls()).toBe(3)
+      // 脏行合并：服务端值不回写正在编辑的格子
+      expect((comment.element as HTMLTextAreaElement).value).toBe('草稿点评')
+
+      // 焦点在表格内时整轮跳过，不发请求
+      const scoreInputEl = wrapper.find('[data-testid="score-9"] input')
+        .element as HTMLInputElement
+      scoreInputEl.focus()
+      await vi.advanceTimersByTimeAsync(30_000)
+      await flushPromises()
+      expect(gradesCalls()).toBe(3)
+      scoreInputEl.blur()
+      wrapper.unmount()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
