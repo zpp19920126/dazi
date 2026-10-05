@@ -25,6 +25,7 @@ describe('homework 批改与成绩名册 (e2e)', () => {
   let classBId = 0;
   let hwId = 0;
   let subAId = 0;
+  let fileAId = 0;
 
   const past = (hours: number) => new Date(Date.now() - hours * 3_600_000).toISOString();
 
@@ -158,6 +159,16 @@ describe('homework 批改与成绩名册 (e2e)', () => {
       data: { homeworkId: hwId, userId: sIdA, textContent: '按时作答', submittedAt: new Date(), isLate: false },
     });
     subAId = subA.id;
+    const fileA = await prisma.homeworkFile.create({
+      data: {
+        submissionId: subA.id,
+        originalName: '作品图.jpg',
+        storedKey: `e2e-dummy/${suffix}-作品图.jpg`,
+        mimeType: 'image/jpeg',
+        sizeBytes: 1234,
+      },
+    });
+    fileAId = fileA.id;
     await prisma.homeworkSubmission.create({
       data: { homeworkId: hwId, userId: sIdB, textContent: '迟交作答', submittedAt: new Date(), isLate: true },
     });
@@ -237,7 +248,7 @@ describe('homework 批改与成绩名册 (e2e)', () => {
     expect(res.body.data.mySubmission.teacherComment).toBeNull();
   });
 
-  it('5. GET grades → total 2；学A 按时 88，学B 迟交 null；stats 口径正确', async () => {
+  it('5. GET grades → total 2；学A 按时 88 + submissionId/textContent/files 增补；学B 迟交 null files 空；stats 口径正确', async () => {
     const res = await request(app.getHttpServer())
       .get(`/api/homeworks/${hwId}/grades`)
       .set('Authorization', `Bearer ${teacherToken}`);
@@ -248,8 +259,16 @@ describe('homework 批改与成绩名册 (e2e)', () => {
     const rowB = data.list.find((r: { userId: number }) => r.userId === sIdB);
     expect(rowA.state).toBe('按时');
     expect(rowA.score).toBe(88);
+    expect(rowA.submissionId).toBe(subAId);
+    expect(rowA.textContent).toBe('按时作答');
+    expect(rowA.files).toEqual([
+      { id: fileAId, originalName: '作品图.jpg', mimeType: 'image/jpeg', sizeBytes: 1234 },
+    ]);
     expect(rowB.state).toBe('迟交');
     expect(rowB.score).toBeNull();
+    expect(rowB.submissionId).not.toBeNull();
+    expect(rowB.textContent).toBe('迟交作答');
+    expect(rowB.files).toEqual([]);
     expect(data.stats).toEqual({ submitted: 2, graded: 1, late: 1, unsubmitted: 0 });
   });
 

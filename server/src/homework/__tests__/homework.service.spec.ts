@@ -1,6 +1,6 @@
 import { ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
-import { HomeworkService } from '../homework.service.js';
+import { HomeworkService, type GradeRow } from '../homework.service.js';
 
 const teacher = { id: 1, role: 'teacher' };
 
@@ -124,5 +124,54 @@ describe('HomeworkService.update / settle', () => {
     expect(arg.where).toEqual({ id: 7 });
     expect(res).toMatchObject({ id: 7, title: '第三课作业' });
     expect(prisma.homeworkSubmission.findMany).not.toHaveBeenCalled();
+  });
+});
+
+describe('HomeworkService.grades 全班名单增补', () => {
+  function gradesService() {
+    const subRow = {
+      id: 21,
+      userId: 11,
+      textContent: '作答A',
+      submittedAt: new Date('2026-10-04T09:00:00Z'),
+      isLate: false,
+      score: null,
+      teacherComment: null,
+      files: [{ id: 5, originalName: '作品图.jpg', mimeType: 'image/jpeg', sizeBytes: 123 }],
+    };
+    return makeService({
+      user: { findMany: vi.fn().mockResolvedValue([
+        { id: 11, realName: '学A', username: 'sa' },
+        { id: 12, realName: '学B', username: 'sb' },
+      ]) },
+      homeworkSubmission: { findMany: vi.fn().mockResolvedValue([subRow]) },
+    });
+  }
+
+  it('已交行携带 submissionId/textContent/files；未交行为 null/null/[]', async () => {
+    const { svc, prisma } = gradesService();
+    prisma.homework.findUnique.mockResolvedValue(hwRow({ klass: { id: 3, name: '一类', teacherId: 1 } }));
+    const res = (await svc.grades(7, teacher, { page: 1, pageSize: 100 })) as {
+      list: GradeRow[];
+      total: number;
+    };
+    const [rowA, rowB] = res.list;
+    expect(rowA).toMatchObject({
+      userId: 11,
+      state: '按时',
+      submissionId: 21,
+      textContent: '作答A',
+      files: [{ id: 5, originalName: '作品图.jpg', mimeType: 'image/jpeg', sizeBytes: 123 }],
+    });
+    expect(rowB).toMatchObject({ userId: 12, state: '未交', submissionId: null, textContent: null, files: [] });
+    expect(res.total).toBe(2);
+  });
+
+  it('CSV 列不受增补字段影响（仍为 姓名,用户名,提交时间,状态,分数,点评）', async () => {
+    const { svc, prisma } = gradesService();
+    prisma.homework.findUnique.mockResolvedValue(hwRow({ klass: { id: 3, name: '一类', teacherId: 1 } }));
+    const csv = (await svc.grades(7, teacher, { exportCsv: 'csv', page: 1, pageSize: 100 })) as string;
+    expect(csv).toContain('姓名,用户名,提交时间,状态,分数,点评');
+    expect(csv).not.toContain('submissionId');
   });
 });

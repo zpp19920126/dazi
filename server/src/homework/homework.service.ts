@@ -12,6 +12,13 @@ interface Actor {
   role: string;
 }
 
+export interface GradeFile {
+  id: number;
+  originalName: string;
+  mimeType: string;
+  sizeBytes: number;
+}
+
 export interface GradeRow {
   userId: number;
   realName: string;
@@ -20,6 +27,9 @@ export interface GradeRow {
   state: '未交' | '迟交' | '按时';
   score: number | null;
   teacherComment: string | null;
+  submissionId: number | null;
+  textContent: string | null;
+  files: GradeFile[];
 }
 
 @Injectable()
@@ -268,7 +278,19 @@ export class HomeworkService {
     });
     const subs = await this.prisma.homeworkSubmission.findMany({
       where: { homeworkId },
-      select: { userId: true, submittedAt: true, isLate: true, score: true, teacherComment: true },
+      select: {
+        id: true,
+        userId: true,
+        submittedAt: true,
+        isLate: true,
+        score: true,
+        teacherComment: true,
+        textContent: true,
+        files: {
+          orderBy: { id: 'asc' },
+          select: { id: true, originalName: true, mimeType: true, sizeBytes: true },
+        },
+      },
     });
     const byUser = new Map(subs.map((s) => [s.userId, s]));
     const rows: GradeRow[] = students.map((st) => {
@@ -281,6 +303,9 @@ export class HomeworkService {
         state: !s ? '未交' : s.isLate ? '迟交' : '按时',
         score: s?.score != null ? Number(s.score) : null,
         teacherComment: s?.teacherComment ?? null,
+        submissionId: s?.id ?? null,
+        textContent: s?.textContent ?? null,
+        files: s?.files ?? [],
       };
     });
     if (opts.exportCsv === 'csv') {
