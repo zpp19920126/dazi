@@ -179,9 +179,10 @@ export class SubmissionsService {
       || file.submission.userId === actor.id
       || file.submission.homework.createdBy === actor.id;
     if (!owner) throw new ForbiddenException('无权下载该附件');
-    const abs = join(uploadRoot(), file.storedKey);
+    const root = uploadRoot();
+    const abs = join(root, file.storedKey);
     // 防穿越：resolve 后必须仍在 uploadRoot 内
-    if (!resolve(abs).startsWith(resolve(uploadRoot()) + sep)) {
+    if (!resolve(abs).startsWith(resolve(root) + sep)) {
       throw new ForbiddenException('非法文件路径');
     }
     if (!existsSync(abs)) throw new NotFoundException('文件已丢失');

@@ -341,6 +341,8 @@ describe('homework-upload 作业提交附件 (e2e)', () => {
     const disposition = dl.headers['content-disposition'] ?? '';
     expect(disposition).toContain('attachment');
     expect(disposition).toContain(`filename*=UTF-8''${encodeURIComponent('答案.pdf')}`);
+    // ASCII 回退名：中文逐字符降级为 '_'，结果是不含引号/反斜杠的良构 token
+    expect(disposition).toContain('filename="__.pdf"');
     expect(dl.body.length).toBe(file!.sizeBytes);
   });
 

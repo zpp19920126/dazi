@@ -19,12 +19,16 @@ export class FilesController {
     @Res() res: Response,
   ) {
     const { absolutePath, originalName } = await this.submissions.getForDownload(id, user);
-    const fallback = basename(originalName).replace(/[^\x20-\x7e]/g, '_') || 'file';
+    // ASCII 回退：保留可见 ASCII，剔除 " (0x22) 与 \ (0x5c)，避免破坏 filename="..." token
+    const fallback =
+      basename(originalName).replace(/[^\x20-\x21\x23-\x5b\x5d-\x7e]/g, '_') || 'file';
     res.setHeader('Content-Type', 'application/octet-stream');
     res.setHeader(
       'Content-Disposition',
       `attachment; filename="${fallback}"; filename*=UTF-8''${encodeURIComponent(originalName)}`,
     );
-    createReadStream(absolutePath).pipe(res);
+    const stream = createReadStream(absolutePath);
+    stream.on('error', () => res.destroy());
+    stream.pipe(res);
   }
 }
