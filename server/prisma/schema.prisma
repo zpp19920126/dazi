@@ -64,6 +64,10 @@ model User {
   classes   Class[]   @relation("ClassTeacher")
   records   Record[]
   heartbeat Heartbeat?
+  sessions     ClassSession[]       @relation("SessionTeacher")
+  attendance   Attendance[]
+  submissions  HomeworkSubmission[]
+  pointRecords PointRecord[]
 
   @@map("users")
 }
@@ -76,6 +80,9 @@ model Class {
   teacher  User    @relation("ClassTeacher", fields: [teacherId], references: [id])
   students User[]
   tasks    Task[]
+  sessions      ClassSession[]
+  homeworks     Homework[]
+  announcements Announcement[]
 
   @@map("class")
 }
@@ -148,4 +155,147 @@ model Heartbeat {
   user User @relation(fields: [userId], references: [id])
 
   @@map("heartbeat")
+}
+
+enum SessionStatus {
+  open
+  closed
+}
+
+enum AttendanceStatus {
+  absent
+  present
+  late
+  excused
+  sick
+}
+
+enum HomeworkStatus {
+  published
+  closed
+}
+
+enum AnnouncementType {
+  general
+  points
+}
+
+enum PointSource {
+  manual
+  auto_attendance
+  auto_homework
+  auto_typing
+}
+
+model ClassSession {
+  id        Int            @id @default(autoincrement())
+  classId   Int            @map("class_id")
+  teacherId Int            @map("teacher_id")
+  period    String?        @db.VarChar(20)
+  status    SessionStatus  @default(open)
+  startedAt DateTime       @default(now()) @map("started_at")
+  endedAt   DateTime?      @map("ended_at")
+  klass      Class          @relation(fields: [classId], references: [id])
+  teacher    User           @relation("SessionTeacher", fields: [teacherId], references: [id])
+  attendance Attendance[]
+
+  @@index([classId, status])
+  @@index([teacherId, startedAt])
+  @@map("class_session")
+}
+
+model Attendance {
+  id        Int              @id @default(autoincrement())
+  sessionId Int              @map("session_id")
+  userId    Int              @map("user_id")
+  checkInAt DateTime?        @map("check_in_at")
+  status    AttendanceStatus @default(absent)
+  corrected Boolean          @default(false)
+  note      String?          @db.VarChar(200)
+  session ClassSession @relation(fields: [sessionId], references: [id])
+  user    User       @relation(fields: [userId], references: [id])
+
+  @@unique([sessionId, userId])
+  @@map("attendance")
+}
+
+model Homework {
+  id              Int            @id @default(autoincrement())
+  classId         Int            @map("class_id")
+  title           String         @db.VarChar(200)
+  content         String         @db.Text
+  dueAt           DateTime       @map("due_at")
+  allowAttachment Boolean        @default(false) @map("allow_attachment")
+  status          HomeworkStatus @default(published)
+  createdBy       Int            @map("created_by")
+  createdAt       DateTime       @default(now()) @map("created_at")
+  klass      Class                 @relation(fields: [classId], references: [id])
+  submissions HomeworkSubmission[]
+
+  @@index([classId, status])
+  @@map("homework")
+}
+
+model HomeworkSubmission {
+  id           Int       @id @default(autoincrement())
+  homeworkId   Int       @map("homework_id")
+  userId       Int       @map("user_id")
+  textContent  String    @db.MediumText @map("text_content")
+  submittedAt  DateTime  @default(now()) @map("submitted_at")
+  isLate       Boolean   @default(false) @map("is_late")
+  score        Decimal?  @db.Decimal(5, 2)
+  teacherComment String? @db.VarChar(500) @map("teacher_comment")
+  gradedBy     Int?      @map("graded_by")
+  gradedAt     DateTime? @map("graded_at")
+  homework Homework       @relation(fields: [homeworkId], references: [id])
+  user     User           @relation(fields: [userId], references: [id])
+  files    HomeworkFile[]
+
+  @@unique([homeworkId, userId])
+  @@map("homework_submission")
+}
+
+model HomeworkFile {
+  id           Int    @id @default(autoincrement())
+  submissionId Int    @map("submission_id")
+  originalName String @db.VarChar(255) @map("original_name")
+  storedKey    String @db.VarChar(255) @map("stored_key")
+  mimeType     String @db.VarChar(100) @map("mime_type")
+  sizeBytes    Int    @map("size_bytes")
+  createdAt    DateTime @default(now()) @map("created_at")
+  submission HomeworkSubmission @relation(fields: [submissionId], references: [id])
+
+  @@index([submissionId])
+  @@map("homework_file")
+}
+
+model Announcement {
+  id        Int              @id @default(autoincrement())
+  classId   Int              @map("class_id")
+  title     String           @db.VarChar(200)
+  content   String           @db.Text
+  type      AnnouncementType @default(general)
+  status    TextStatus       @default(published)
+  createdBy Int              @map("created_by")
+  createdAt DateTime         @default(now()) @map("created_at")
+  klass Class @relation(fields: [classId], references: [id])
+
+  @@index([classId, status])
+  @@map("announcement")
+}
+
+model PointRecord {
+  id        Int         @id @default(autoincrement())
+  userId    Int         @map("user_id")
+  delta     Int
+  reason    String      @db.VarChar(200)
+  source    PointSource
+  refId     Int?        @map("ref_id")
+  createdBy Int?        @map("created_by")
+  createdAt DateTime    @default(now()) @map("created_at")
+  user User @relation(fields: [userId], references: [id])
+
+  // 自动得分幂等防重：同来源同记录同用户仅一条；manual 的 refId=NULL 不受约束（MySQL 唯一键允许多 NULL）
+  @@unique([source, refId, userId], map: "point_source_ref_user_key")
+  @@map("point_record")
 }
