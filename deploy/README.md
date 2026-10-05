@@ -197,3 +197,14 @@ crontab -e
 2. 上传新 web dist 至 /var/www/typing/web-dist
 3. `pm2 restart typing-api`；教师端登录验证「课堂管理 ▾ 开课考勤」开/结课一次
 4. 回滚 = 还原备份 + 旧 dist；class_session/attendance/point_record 为新表，旧版本代码不读取，无需回滚迁移
+
+## 课堂管理 P2（作业）上线步骤
+
+P2 零数据库迁移——7 张课堂表（含 homework/submission 等）P1 迁移已建，无需再跑 `prisma migrate deploy`。沿用 §3 离线整包 tar 流程：
+
+1. 本机：`cd server && npm i @nestjs/schedule && npm run build`；`server/dist` + `node_modules` 整包上传（同 P1 备忘的 tar 流程）
+2. 服务器 `.env` 追加 `UPLOAD_DIR=/var/www/typing/uploads`；`mkdir -p /var/www/typing/uploads && chown -R <pm2运行用户> /var/www/typing/uploads`
+3. `web/dist` 整包上传替换
+4. `pm2 restart typing-api`（ScheduleModule 随启动生效，无需额外进程）
+5. 验收：教师布置（含附件开关）→ 学生附件提交 → 截止前重交覆盖（旧文件消失）→ 教师批改 → CSV 导出（BOM 打开无乱码）→ 到点 cron 自动截止且按时学生 +2 积分（积分流水 source=auto_homework）
+6. 回滚：还原旧 `dist`（homework 三表旧代码不读取，可保留）；`uploads/` 目录可保留不清理

@@ -18,3 +18,10 @@ mysqldump -u "$MYSQL_USER" --single-transaction --no-tablespaces "$DB_NAME" \
 
 # 保留最近 7 份，其余删除
 find "$BACKUP_DIR" -name '*.sql.gz' -mtime +7 -delete
+
+# --- uploads（作业附件）备份 ---
+UPLOADS_DIR="${UPLOADS_DIR:-/var/www/typing/uploads}"
+if [ -d "$UPLOADS_DIR" ]; then
+  tar -czf "$BACKUP_DIR/uploads-$(date +%F).tar.gz" -C "$(dirname "$UPLOADS_DIR")" "$(basename "$UPLOADS_DIR")"
+  find "$BACKUP_DIR" -name 'uploads-*.tar.gz' -mtime +7 -delete
+fi
