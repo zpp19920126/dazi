@@ -66,9 +66,21 @@ describe('学生作业提交页', () => {
     wrapper.unmount()
   })
 
-  it('文本提交走 multipart FormData', async () => {
+  it('文本提交走 multipart FormData，成功后清空附件选择框可见值', async () => {
+    mocks.get.mockResolvedValueOnce(detailOf({ allowAttachment: true }))
     const wrapper = mount(HomeworkSubmit, { global: { plugins: [ElementPlus] } })
     await flushPromises()
+
+    // jsdom 无法构造真实 FileList：覆写 value 模拟已选文件名的显示，验证组件把 DOM input 重置为空
+    const fileInputEl = wrapper.find('[data-testid="file-input"]').element as HTMLInputElement
+    let visibleName = 'C:\\fakepath\\作业.pdf'
+    Object.defineProperty(fileInputEl, 'value', {
+      configurable: true,
+      get: () => visibleName,
+      set: (v: string) => {
+        visibleName = v
+      },
+    })
 
     await wrapper.find('textarea[data-testid="content-input"]').setValue('我的答案')
     await wrapper.find('[data-testid="send-submit"]').trigger('click')
@@ -79,6 +91,7 @@ describe('学生作业提交页', () => {
     expect(url).toBe('/homeworks/7/submissions')
     expect(fd).toBeInstanceOf(FormData)
     expect(fd.get('textContent')).toBe('我的答案')
+    expect(fileInputEl.value).toBe('')
     wrapper.unmount()
   })
 

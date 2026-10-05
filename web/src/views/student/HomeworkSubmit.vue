@@ -32,6 +32,7 @@ const hwId = Number(route.params.id)
 const detail = ref<Detail | null>(null)
 const text = ref('')
 const files = ref<File[]>([])
+const fileInput = ref<HTMLInputElement>()
 const sending = ref(false)
 
 const pastDue = computed(() => (detail.value ? Date.now() > new Date(detail.value.homework.dueAt).getTime() : false))
@@ -62,6 +63,7 @@ async function send() {
     await request.post(`/homeworks/${hwId}/submissions`, fd)
     ElMessage.success('已提交')
     files.value = []
+    if (fileInput.value) fileInput.value.value = '' // 清空原生选择框的文件名显示
     await load()
   } finally {
     sending.value = false
@@ -114,7 +116,7 @@ onMounted(load)
 
     <el-input v-model="text" type="textarea" :rows="8" maxlength="50000" data-testid="content-input" placeholder="作业内容…" />
     <div v-if="detail.homework.allowAttachment" class="attach">
-      <input type="file" multiple data-testid="file-input" @change="onFileChange" />
+      <input ref="fileInput" type="file" multiple data-testid="file-input" @change="onFileChange" />
       <span class="hint">单文件 ≤10MB，最多 3 个（jpg/png/pdf/doc/docx/zip）</span>
     </div>
     <div class="actions">
