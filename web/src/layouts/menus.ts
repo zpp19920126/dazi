@@ -1,9 +1,10 @@
-/** 侧边菜单项 */
+/** 侧边菜单项；children 存在时渲染为可展开分组 */
 export interface MenuItem {
-  /** 完整路由路径，如 /student/tasks */
-  path: string
+  /** 完整路由路径，如 /student/tasks；分组项无 path */
+  path?: string
   /** 菜单中文名 */
   label: string
+  children?: MenuItem[]
 }
 
 // 菜单项与设计文档第 7 节页面清单一一对应（实时看板依赖班级参数，从任务管理进入，不设固定菜单项）
