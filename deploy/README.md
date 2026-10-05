@@ -190,3 +190,10 @@ crontab -e
 `--no-tablespaces` 已写入 backup.sh（typing 用户无 PROCESS 权限）。
 
 恢复：`gunzip < /var/backups/typing/<日期>.sql.gz | mysql -u typing -p typing_system`
+
+## 课堂管理 P1（考勤）上线步骤
+
+1. 上传新 server dist + prisma 目录；`npx prisma migrate deploy` 应用 `*_classroom_management` 迁移（先手动备份：跑一次 backup.sh）
+2. 上传新 web dist 至 /var/www/typing/web-dist
+3. `pm2 restart typing-api`；教师端登录验证「课堂管理 ▾ 开课考勤」开/结课一次
+4. 回滚 = 还原备份 + 旧 dist；class_session/attendance/point_record 为新表，旧版本代码不读取，无需回滚迁移
