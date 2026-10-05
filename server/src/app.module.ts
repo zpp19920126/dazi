@@ -16,6 +16,7 @@ import { RecordsModule } from './records/records.module.js';
 import { HeartbeatsModule } from './heartbeats/heartbeats.module.js';
 import { StatsModule } from './stats/stats.module.js';
 import { PointsModule } from './points/points.module.js';
+import { SessionsModule } from './sessions/sessions.module.js';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor.js';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter.js';
 
@@ -32,6 +33,7 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter.js';
     HeartbeatsModule,
     StatsModule,
     PointsModule,
+    SessionsModule,
   ],
   controllers: [AppController],
   providers: [
