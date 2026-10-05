@@ -130,12 +130,13 @@ describe('homework 模块 (e2e)', () => {
       where: { username: 'admin' },
       data: { mustChangePassword: true },
     });
-    // 清理顺序：作业文件 → 提交 → 作业 → 积分 → 考勤 → 心跳 → 断开学生班级 → 班级 → 用户（外键 Restrict）
+    // 清理顺序：作业文件 → 提交 → 作业 → 积分 → 考勤 → 课次 → 心跳 → 断开学生班级 → 班级 → 用户（外键 Restrict）
     await prisma.homeworkFile.deleteMany({ where: { submission: { homework: { classId: { in: [classAId, classBId] } } } } });
     await prisma.homeworkSubmission.deleteMany({ where: { homework: { classId: { in: [classAId, classBId] } } } });
     await prisma.homework.deleteMany({ where: { classId: { in: [classAId, classBId] } } });
     await prisma.pointRecord.deleteMany({ where: { user: { username: { in: createdUsernames } } } });
     await prisma.attendance.deleteMany({ where: { user: { username: { in: createdUsernames } } } });
+    await prisma.classSession.deleteMany({ where: { classId: { in: [classAId, classBId] } } });
     await prisma.heartbeat.deleteMany({ where: { user: { username: { in: createdUsernames } } } });
     await prisma.user.updateMany({
       where: { username: { in: createdUsernames } },
