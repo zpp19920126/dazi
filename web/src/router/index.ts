@@ -128,6 +128,13 @@ export const routes: RouteRecordRaw[] = [
         component: () => import('@/views/teacher/HomeworkList.vue'),
         meta: { title: '作业管理', roles: ['teacher'] },
       },
+      {
+        // 从作业管理页进入批改，不放入侧边固定菜单；admin 读能力保留在 API 层
+        path: 'homeworks/:id/grading',
+        name: 'teacher-homework-grading',
+        component: () => import('@/views/teacher/HomeworkGrading.vue'),
+        meta: { title: '作业批改', roles: ['teacher'] },
+      },
     ],
   },
   {
