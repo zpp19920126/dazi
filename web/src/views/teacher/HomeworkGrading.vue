@@ -55,6 +55,7 @@ const expandedIds = ref<number[]>([])
 
 const imgUrls = reactive<Record<number, string>>({})
 const imgRequested = new Set<number>()
+let disposed = false
 
 const detailRow = ref<Row | null>(null)
 const detailVisible = ref(false)
@@ -88,6 +89,9 @@ function isDirty(r: Row): boolean {
   return r.score !== s.score || r.teacherComment !== s.comment
 }
 
+// 点评归一化：纯空白等价于清空（服务端收到 undefined 即置 null）
+const normComment = (c: string) => (c.trim() ? c : '')
+
 function applyGrades(g: GradesData, pollStart?: number) {
   // 本轮请求发起时/之后才保存成功的行：旧响应直接丢弃，保留已保存值
   // （用 >= 覆盖同一毫秒竞态；下一轮轮询自然恢复同步）
@@ -107,7 +111,8 @@ function applyGrades(g: GradesData, pollStart?: number) {
     return merged
   })
   for (const r of g.list) {
-    if (freshAfterPoll(r.userId)) continue
+    // 与行合并条件对称：仅对 prev 中存在的行保留 snap
+    if (prev.has(r.userId) && freshAfterPoll(r.userId)) continue
     snap.set(r.userId, { score: r.score, comment: r.teacherComment ?? '' })
   }
   rows.value = next
@@ -129,11 +134,11 @@ async function fetchImage(id: number) {
   try {
     const blob = await request.get<Blob>(`/files/${id}/download`, { responseType: 'blob' })
     const url = URL.createObjectURL(blob)
-    // 拉取期间行已被轮询移除：立即回收，避免 imgRequested 外无人清理的泄漏
-    if (imgRequested.has(id)) imgUrls[id] = url
+    // 拉取期间行已被移除或页面已卸载：立即回收，避免无人清理的泄漏
+    if (!disposed && imgRequested.has(id)) imgUrls[id] = url
     else URL.revokeObjectURL(url)
   } catch {
-    if (imgRequested.has(id)) imgUrls[id] = ''
+    if (!disposed && imgRequested.has(id)) imgUrls[id] = ''
   }
 }
 
@@ -172,23 +177,27 @@ async function load() {
   }
 }
 
-async function saveRow(r: Row) {
+async function saveRow(r: Row, silent = false) {
   if (!r.submissionId || savingIds.has(r.userId) || !isDirty(r)) return
   if (r.score == null) {
-    ElMessage.warning(`${r.realName}：请先填写分数`)
+    // 补发路径静默：分数是刚保存成功的那个
+    if (!silent) ElMessage.warning(`${r.realName}：请先填写分数`)
     return
   }
   savingIds.add(r.userId)
   // 同步捕获待发送值：飞行中再次编辑不能被误标为已保存
-  const sent = { score: r.score, comment: r.teacherComment }
+  const sent = { score: r.score, comment: normComment(r.teacherComment) }
   let ok = false
   try {
     await request.patch(`/homework/submissions/${r.submissionId}/grade`, {
       score: sent.score,
-      comment: sent.comment.trim() ? sent.comment : undefined,
+      comment: sent.comment || undefined,
     })
-    snap.set(r.userId, { score: sent.score, comment: sent.comment.trim() })
+    snap.set(r.userId, { score: sent.score, comment: sent.comment })
     lastSavedAt.set(r.userId, Date.now())
+    // 归一化行值（纯空格→''），保证 行/snap/服务端 三者一致，否则脏判定永不消解；
+    // 飞行期间已有新编辑时不动行值，交由 finally 补发
+    if (normComment(r.teacherComment) === sent.comment) r.teacherComment = sent.comment
     ElMessage.success(`已保存 ${r.realName}`)
     ok = true
   } catch {
@@ -200,8 +209,11 @@ async function saveRow(r: Row) {
     ElMessage.error(`保存失败：${r.realName}`)
   } finally {
     savingIds.delete(r.userId)
-    // 补发飞行期间被拦截的编辑
-    if (ok && isDirty(r)) void saveRow(r)
+    // 补发飞行期间被拦截的编辑：取当前在表中的行对象（轮询可能已换引用）
+    if (ok) {
+      const live = rows.value.find((x) => x.userId === r.userId)
+      if (live && isDirty(live)) void saveRow(live, true)
+    }
   }
 }
 
@@ -240,6 +252,7 @@ onMounted(() => {
   timer = window.setInterval(tick, 30_000)
 })
 onBeforeUnmount(() => {
+  disposed = true
   if (timer) clearInterval(timer)
   for (const u of Object.values(imgUrls)) if (u) URL.revokeObjectURL(u)
 })

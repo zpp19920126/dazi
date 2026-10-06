@@ -258,7 +258,11 @@ describe('教师批改全班表格页', () => {
     await flushPromises() // 成功 → snap 记已发送值 → finally 补发
 
     expect(mocks.patch).toHaveBeenCalledTimes(2)
-    expect(mocks.patch).toHaveBeenLastCalledWith('/homework/submissions/21/grade', {
+    expect(mocks.patch).toHaveBeenNthCalledWith(1, '/homework/submissions/21/grade', {
+      score: 92.5,
+      comment: '第一版点评',
+    })
+    expect(mocks.patch).toHaveBeenNthCalledWith(2, '/homework/submissions/21/grade', {
       score: 92.5,
       comment: '第二版点评',
     })
@@ -291,10 +295,39 @@ describe('教师批改全班表格页', () => {
       await flushPromises()
 
       expect((comment.element as HTMLTextAreaElement).value).toBe('最终点评')
+      // snap 也未被旧值污染：再失焦不产生新 PATCH
+      mocks.patch.mockClear()
+      await comment.trigger('blur')
+      await flushPromises()
+      expect(mocks.patch).not.toHaveBeenCalled()
       wrapper.unmount()
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  it('带尾换行/纯空格的点评只保存一次：行/snap/服务端归一化一致，不触发补发循环', async () => {
+    const wrapper = mountPage()
+    await flushPromises()
+
+    const comment = wrapper.find('textarea[data-testid="comment-9"]')
+    await comment.setValue('好\n') // 文本域回车产生的尾换行：原样入库，但不得反复判脏
+    await comment.trigger('blur')
+    await vi.waitFor(() => expect(mocks.patch).toHaveBeenCalledTimes(1))
+    await flushPromises()
+    expect(mocks.patch).toHaveBeenCalledTimes(1)
+
+    mocks.patch.mockClear()
+    await comment.setValue('   ') // 纯空格 → 服务端清空，行值同步归一为 ''
+    await comment.trigger('blur')
+    await vi.waitFor(() => expect(mocks.patch).toHaveBeenCalledTimes(1))
+    await flushPromises()
+    expect(mocks.patch).toHaveBeenCalledTimes(1)
+    expect(mocks.patch).toHaveBeenCalledWith('/homework/submissions/21/grade', {
+      score: 92.5,
+      comment: undefined,
+    })
+    wrapper.unmount()
   })
 
   it('轮询后行消失：已打开的详情弹窗自动关闭', async () => {
