@@ -105,7 +105,8 @@ async function downloadFile(id: number, name: string) {
   a.href = url
   a.download = name
   a.click()
-  URL.revokeObjectURL(url)
+  // 同步 revoke 会掐断 Firefox 等引擎尚未开始的下载
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
 
 onMounted(load)

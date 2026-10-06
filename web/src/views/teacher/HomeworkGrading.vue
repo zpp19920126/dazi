@@ -67,6 +67,8 @@ function openDetail(r: Row) {
 // 服务端快照：脏检查/失败回滚/轮询合并的基准
 const snap = new Map<number, { score: number | null; comment: string }>()
 const savingIds = new Set<number>()
+// 每行最近一次保存成功时间：晚于轮询发起时间的行拒绝旧响应回填
+const lastSavedAt = new Map<number, number>()
 
 const header = computed(() => {
   const b = brief.value
@@ -86,11 +88,17 @@ function isDirty(r: Row): boolean {
   return r.score !== s.score || r.teacherComment !== s.comment
 }
 
-function applyGrades(g: GradesData) {
+function applyGrades(g: GradesData, pollStart?: number) {
+  // 本轮请求发起时/之后才保存成功的行：旧响应直接丢弃，保留已保存值
+  // （用 >= 覆盖同一毫秒竞态；下一轮轮询自然恢复同步）
+  const freshAfterPoll = (userId: number) =>
+    pollStart !== undefined && (lastSavedAt.get(userId) ?? 0) >= pollStart
   const prev = new Map(rows.value.map((r) => [r.userId, r]))
   const next: Row[] = g.list.map((r) => {
-    const merged: Row = { ...r, teacherComment: r.teacherComment ?? '' }
     const old = prev.get(r.userId)
+    // 本轮请求发起后才保存成功的行：旧响应直接丢弃，保留已保存值
+    if (old && freshAfterPoll(r.userId)) return old
+    const merged: Row = { ...r, teacherComment: r.teacherComment ?? '' }
     // 未保存的输入不被轮询覆盖
     if (old && isDirty(old)) {
       merged.score = old.score
@@ -98,13 +106,21 @@ function applyGrades(g: GradesData) {
     }
     return merged
   })
-  for (const r of g.list) snap.set(r.userId, { score: r.score, comment: r.teacherComment ?? '' })
+  for (const r of g.list) {
+    if (freshAfterPoll(r.userId)) continue
+    snap.set(r.userId, { score: r.score, comment: r.teacherComment ?? '' })
+  }
   rows.value = next
   meta.value = { total: g.total, stats: g.stats }
-  // 弹窗打开时重绑到新行对象，随轮询刷新内容
+  // 弹窗打开时重绑到新行对象，随轮询刷新内容；行消失则关闭弹窗
   if (detailRow.value) {
     const uid = detailRow.value.userId
-    detailRow.value = next.find((r) => r.userId === uid) ?? null
+    const fresh = next.find((r) => r.userId === uid)
+    if (fresh) detailRow.value = fresh
+    else {
+      detailRow.value = null
+      detailVisible.value = false
+    }
   }
   syncImages(next)
 }
@@ -112,9 +128,12 @@ function applyGrades(g: GradesData) {
 async function fetchImage(id: number) {
   try {
     const blob = await request.get<Blob>(`/files/${id}/download`, { responseType: 'blob' })
-    imgUrls[id] = URL.createObjectURL(blob)
+    const url = URL.createObjectURL(blob)
+    // 拉取期间行已被轮询移除：立即回收，避免 imgRequested 外无人清理的泄漏
+    if (imgRequested.has(id)) imgUrls[id] = url
+    else URL.revokeObjectURL(url)
   } catch {
-    imgUrls[id] = ''
+    if (imgRequested.has(id)) imgUrls[id] = ''
   }
 }
 
@@ -138,8 +157,9 @@ function syncImages(rows: Row[]) {
 }
 
 async function loadGrades() {
+  const started = Date.now()
   const g = await request.get<GradesData>(`/homeworks/${hwId}/grades?pageSize=100`)
-  applyGrades(g)
+  applyGrades(g, started)
 }
 
 async function load() {
@@ -159,13 +179,18 @@ async function saveRow(r: Row) {
     return
   }
   savingIds.add(r.userId)
+  // 同步捕获待发送值：飞行中再次编辑不能被误标为已保存
+  const sent = { score: r.score, comment: r.teacherComment }
+  let ok = false
   try {
     await request.patch(`/homework/submissions/${r.submissionId}/grade`, {
-      score: r.score,
-      comment: r.teacherComment.trim() ? r.teacherComment : undefined,
+      score: sent.score,
+      comment: sent.comment.trim() ? sent.comment : undefined,
     })
-    snap.set(r.userId, { score: r.score, comment: r.teacherComment })
+    snap.set(r.userId, { score: sent.score, comment: sent.comment.trim() })
+    lastSavedAt.set(r.userId, Date.now())
     ElMessage.success(`已保存 ${r.realName}`)
+    ok = true
   } catch {
     const s = snap.get(r.userId)
     if (s) {
@@ -175,6 +200,8 @@ async function saveRow(r: Row) {
     ElMessage.error(`保存失败：${r.realName}`)
   } finally {
     savingIds.delete(r.userId)
+    // 补发飞行期间被拦截的编辑
+    if (ok && isDirty(r)) void saveRow(r)
   }
 }
 
@@ -185,7 +212,8 @@ async function downloadFile(f: FileItem) {
   a.href = url
   a.download = f.originalName
   a.click()
-  URL.revokeObjectURL(url)
+  // 同步 revoke 会掐断 Firefox 等引擎尚未开始的下载
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
 
 const previewList = (row: Row) =>

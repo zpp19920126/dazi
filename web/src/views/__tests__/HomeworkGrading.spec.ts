@@ -243,4 +243,88 @@ describe('教师批改全班表格页', () => {
     expect(dlg2.find('[data-testid="dfile-dl-32"]').exists()).toBe(true)
     wrapper.unmount()
   })
+
+  it('保存在途时再次编辑不丢失：首个 PATCH 成功后自动补发第二个 PATCH', async () => {
+    let resolveFirst!: (v: unknown) => void
+    mocks.patch.mockImplementationOnce(() => new Promise((res) => (resolveFirst = res)))
+    const wrapper = mountPage()
+    await flushPromises()
+
+    const comment = wrapper.find('textarea[data-testid="comment-9"]')
+    await comment.setValue('第一版点评')
+    await comment.trigger('blur') // PATCH #1 挂起（savingIds 拦截后续保存）
+    await comment.setValue('第二版点评') // 飞行期间继续编辑
+    resolveFirst({})
+    await flushPromises() // 成功 → snap 记已发送值 → finally 补发
+
+    expect(mocks.patch).toHaveBeenCalledTimes(2)
+    expect(mocks.patch).toHaveBeenLastCalledWith('/homework/submissions/21/grade', {
+      score: 92.5,
+      comment: '第二版点评',
+    })
+    wrapper.unmount()
+  })
+
+  it('保存成功后，发起于保存前的迟归轮询不回写旧成绩', async () => {
+    vi.useFakeTimers()
+    try {
+      const wrapper = mountPage()
+      await flushPromises()
+
+      // 拦下 tick 发起的 grades GET，让它在保存之后才迟到返回
+      let resolveGrades!: (v: unknown) => void
+      const defaultGet = mocks.get.getMockImplementation()!
+      mocks.get.mockImplementationOnce((url: string) => {
+        if (url === '/homeworks/7/grades?pageSize=100') {
+          return new Promise((res) => (resolveGrades = res))
+        }
+        return defaultGet(url)
+      })
+      await vi.advanceTimersByTimeAsync(30_000) // tick → grades 请求在途（数据为旧值）
+
+      const comment = wrapper.find('textarea[data-testid="comment-9"]')
+      await comment.setValue('最终点评')
+      await comment.trigger('blur')
+      await flushPromises() // PATCH 成功，lastSavedAt 晚于轮询发起
+
+      resolveGrades(clone(gradesPayload)) // 迟到的旧响应：teacherComment '很好'
+      await flushPromises()
+
+      expect((comment.element as HTMLTextAreaElement).value).toBe('最终点评')
+      wrapper.unmount()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('轮询后行消失：已打开的详情弹窗自动关闭', async () => {
+    vi.useFakeTimers()
+    try {
+      const wrapper = mount(HomeworkGrading, {
+        global: { plugins: [ElementPlus], stubs: { teleport: true } },
+        attachTo: document.body,
+      })
+      await flushPromises()
+      await wrapper.find('[data-testid="detail-9"]').trigger('click')
+      await flushPromises()
+      expect(wrapper.find('[data-testid="detail-dialog"]').exists()).toBe(true)
+
+      const shrunk = clone(gradesPayload)
+      shrunk.list = shrunk.list.filter((r: { userId: number }) => r.userId !== 9)
+      const defaultGet = mocks.get.getMockImplementation()!
+      mocks.get.mockImplementationOnce((url: string) =>
+        url === '/homeworks/7/grades?pageSize=100' ? Promise.resolve(shrunk) : defaultGet(url),
+      )
+      await vi.advanceTimersByTimeAsync(30_000)
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid="detail-dialog"]').exists()).toBe(false)
+      // 弹窗本体（overlay）也必须真正关闭，而非留下空白对话框
+      const overlay = wrapper.find('.el-overlay')
+      expect(overlay.exists() ? overlay.attributes('style') ?? '' : '').toContain('display: none')
+      wrapper.unmount()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 })
