@@ -138,7 +138,13 @@ function reshuffle(cells, rows, cols, rule, rand) {
   }
   return cells; // 理论上到不了：free保底已在循环内；全失败则原样返回由view静默重试
 }
-function attempt(){ return null; }
+function attempt(cells, rows, cols, rule, a, b) {
+  if (a.r === b.r && a.c === b.c) return { type: 'diff' };          // 点同一格按无效对待
+  if (cells[a.r][a.c] !== cells[b.r][b.c]) return { type: 'diff' };
+  if (rule === 'free') return { type: 'match', path: [a, b] };
+  const path = findPath(rows, cols, aliveFn(cells), a, b, MAXTURNS[rule]);
+  return path ? { type: 'match', path } : { type: 'blocked' };
+}
 /* === ENGINE END === */
 /* === STORE START === */
 const STORE_KEY = 'llk-toddler-v1';

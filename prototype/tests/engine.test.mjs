@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { LEVELS, POOL, MAXTURNS, findPath } from '../.test/engine.mjs';
+import { LEVELS, POOL, MAXTURNS, findPath, attempt } from '../.test/engine.mjs';
 
 test('LEVELS 共9关且与spec§3一致', () => {
   assert.equal(LEVELS.length, 9);
@@ -105,4 +105,16 @@ test('findHint 与 hasAvailablePair 同结果', () => {
   const level = LEVELS[7]; const g = generateBoard(level, mulberry32(3));
   assert.deepEqual(findHint(g.cells, level.rows, level.cols, g.rule),
     hasAvailablePair(g.cells, level.rows, level.cols, g.rule));
+});
+
+test('attempt：异图案diff；同图案free即match；classic不通blocked', () => {
+  const cells = [[0, 1], [2, 0]]; // (0,0)(1,1)都是图案0
+  assert.deepEqual(attempt(cells, 2, 2, 'free', {r:0,c:0}, {r:1,c:1}).type, 'match');
+  assert.equal(attempt(cells, 2, 2, 'free', {r:0,c:0}, {r:0,c:1}).type, 'diff');
+  // classic：(0,0)与(1,1)对角，2×2内无外圈时1转弯可达（外圈允许则也可达）→ 用大棋盘构造真不通
+  const big = [[0,1,1,1],[1,1,1,1],[1,1,1,0]]; // 图案0在(0,0)与(2,3)，中间全占
+  const res = attempt(big, 3, 4, 'classic', {r:0,c:0}, {r:2,c:3});
+  assert.equal(res.type, 'blocked'); // 需≥3转弯，外圈仅1层救不回
+  const ok = attempt([[0, null, 0]], 1, 3, 'classic', {r:0,c:0}, {r:0,c:2});
+  assert.equal(ok.type, 'match'); assert.deepEqual(ok.path, [{r:0,c:0},{r:0,c:2}]);
 });
