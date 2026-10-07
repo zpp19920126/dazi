@@ -148,8 +148,25 @@ function attempt(cells, rows, cols, rule, a, b) {
 /* === ENGINE END === */
 /* === STORE START === */
 const STORE_KEY = 'llk-toddler-v1';
-function loadProgress(){ return { cleared:[], sound:true, voice:true, hintUsed:{} }; }
-function saveProgress(){} function markCleared(){}
+const DEFAULT_PROGRESS = { cleared: [], sound: true, voice: true, hintUsed: {} };
+function loadProgress(storage) {
+  try {
+    const d = JSON.parse(storage.getItem(STORE_KEY) || '{}');
+    return {
+      cleared: Array.isArray(d.cleared) ? d.cleared.filter(n => Number.isInteger(n) && n >= 1 && n <= 9) : [],
+      sound: d.sound !== false, voice: d.voice !== false,
+      hintUsed: d.hintUsed && typeof d.hintUsed === 'object' ? d.hintUsed : {},
+    };
+  } catch (e) { return { ...DEFAULT_PROGRESS }; }
+}
+function saveProgress(storage, p) {
+  try { storage.setItem(STORE_KEY, JSON.stringify(p)); } catch (e) { /* 无痕模式静默 */ }
+}
+function markCleared(storage, levelId) {
+  const p = loadProgress(storage);
+  if (!p.cleared.includes(levelId)) p.cleared.push(levelId);
+  saveProgress(storage, p); return p;
+}
 /* === STORE END === */
 </script>
 </body>
