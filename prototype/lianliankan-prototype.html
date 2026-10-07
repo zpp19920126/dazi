@@ -59,7 +59,9 @@
     align-items:center; justify-content:center; font-size:22px; color:#B0447A; }
   .reshuffle { animation:flip .8s; } @keyframes flip { 50%{transform:rotateY(180deg) scale(1.1)} }
   /* 屏布局 */
-  #scr-open { align-items:center; justify-content:center; gap:9vh; }
+  #scr-open { align-items:center; justify-content:center; gap:9vh; position:relative; }
+  #scr-open .ver { position:absolute; bottom:8px; right:10px; font-size:11px;
+    color:rgba(176,68,122,.5); pointer-events:none; }
   #scr-open .logo { font-size:26vw; line-height:1; touch-action:none;
     filter:drop-shadow(0 6px 16px rgba(255,122,182,.45)); }
   #scr-map .map-area { position:relative; flex:1; }
@@ -91,6 +93,7 @@
   <section id="scr-open">
     <div class="logo" id="logo">🦄</div>
     <button class="big-btn" id="btn-start">开始玩!</button>
+    <span class="ver">v1.1</span>
   </section>
   <section id="scr-map">
     <div class="topbar"><button class="back" id="map-back">←</button>
@@ -109,7 +112,7 @@
     <label class="pk-row"><input type="checkbox" id="pk-voice"> 鼓励语音</label>
     <button id="pk-reset" class="pk-btn">重置进度</button>
     <button id="pk-back" class="pk-btn">返回</button>
-    <p class="pk-note">长按 Unicorn 图案 3 秒进入本页。</p>
+    <p class="pk-note">长按 Unicorn 图案 3 秒进入本页。版本 v1.1（2026-10-08 修复竞态）。</p>
   </section>
 </div>
 <script>
