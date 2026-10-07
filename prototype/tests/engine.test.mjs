@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { LEVELS, POOL, MAXTURNS, findPath, attempt } from '../.test/engine.mjs';
+import { LEVELS, POOL, MAXTURNS, findPath, attempt, generateBoard, hasAvailablePair, findHint, reshuffle } from '../.test/engine.mjs';
 
 test('LEVELS 共9关且与spec§3一致', () => {
   assert.equal(LEVELS.length, 9);
@@ -47,12 +47,10 @@ test('findPath 借外圈绕行：满隔断两卡仍可2转弯相连', () => {
 });
 
 test('findPath 完全堵死返回null', () => {
-  const on = [[0,1],[1,0],[1,1],[0,2]]; // (0,0)与(1,2)? 构造a孤立方
+  const on = [[0,1],[1,0],[1,1],[0,2]]; // a=(0,0) 被 (0,1)/(1,0) 夹死，2转弯不可达
   const { alive, rows, cols } = mk(2, 4, on.concat([[1,3]]));
   assert.equal(findPath(rows, cols, alive, {r:0,c:0}, {r:1,c:2}, 2), null);
 });
-
-import { generateBoard, hasAvailablePair, findHint, reshuffle } from '../.test/engine.mjs';
 
 function mulberry32(seed) { return function() {
   seed |= 0; seed = seed + 0x6D2B79F5 | 0;

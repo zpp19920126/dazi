@@ -163,7 +163,6 @@ function findPath(rows, cols, alive, a, b, maxTurns) {
   while (cur) { pts.push({ r:cur[0], c:cur[1] });
     const p = parent.get(key(cur[0],cur[1])); cur = p; }
   pts.reverse();
-  // 等距射线重建：parent记的是线段起点，两点间还需展开直线中间点吗？不需要——view只需折线顶点
   const out = []; // 共线压缩
   for (const p of pts) {
     const n = out.length;
