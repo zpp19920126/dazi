@@ -30,3 +30,9 @@ test('markCleared：去重追加并落盘', () => {
 test('saveProgress写失败静默返回', () => {
   saveProgress(throwingStore, { cleared: [1] }); // 不抛异常即通过
 });
+
+test('回归：markCleared抛错存储不污染模块默认值', () => {
+  markCleared(throwingStore, 1); // loadProgress 走 catch 回退默认值后 push，历史上会改到共享的 DEFAULT_PROGRESS.cleared
+  assert.deepEqual(loadProgress(throwingStore).cleared, []);
+  assert.deepEqual(loadProgress(mapStore({ [STORE_KEY]: '{bad json' })).cleared, []);
+});

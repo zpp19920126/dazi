@@ -148,7 +148,7 @@ function attempt(cells, rows, cols, rule, a, b) {
 /* === ENGINE END === */
 /* === STORE START === */
 const STORE_KEY = 'llk-toddler-v1';
-const DEFAULT_PROGRESS = { cleared: [], sound: true, voice: true, hintUsed: {} };
+const defaultProgress = () => ({ cleared: [], sound: true, voice: true, hintUsed: {} });
 function loadProgress(storage) {
   try {
     const d = JSON.parse(storage.getItem(STORE_KEY) || '{}');
@@ -157,7 +157,7 @@ function loadProgress(storage) {
       sound: d.sound !== false, voice: d.voice !== false,
       hintUsed: d.hintUsed && typeof d.hintUsed === 'object' ? d.hintUsed : {},
     };
-  } catch (e) { return { ...DEFAULT_PROGRESS }; }
+  } catch (e) { return defaultProgress(); }
 }
 function saveProgress(storage, p) {
   try { storage.setItem(STORE_KEY, JSON.stringify(p)); } catch (e) { /* 无痕模式静默 */ }
