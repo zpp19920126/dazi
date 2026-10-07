@@ -296,5 +296,46 @@ function markCleared(storage, levelId) {
 })();
 /* === VIEW END === */
 </script>
+<script>
+/* === AUDIO START === */
+// WebAudio 合成音效 + zh-CN 鼓励语音；首次 pointerdown 建 AudioContext（ autoplay 合规）；
+// 全部静默降级（spec§8）：构造失败/未 init/无 speechSynthesis → 空操作不抛错。
+// 注意：顶层 const Audio 会在此后的同页脚本与 devtools 求值中遮蔽 window.Audio 构造器，
+// 全页无人使用 new Audio()，T9 按名调用 Audio.play/say/setFlags。
+const Audio = (() => {
+  let ctx = null, ok = true, lastSay = { t: 0, text: '' };
+  let flags = { sound: true, voice: true };
+  function init() { if (ctx || !ok) return;
+    try { ctx = new (window.AudioContext || window.webkitAudioContext)(); }
+    catch (e) { ok = false; } }
+  function tone(freq, ms, type = 'sine', gain = .15) {
+    if (!ok || !ctx || !flags.sound) return;
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = type; o.frequency.value = freq; g.gain.value = gain;
+    o.connect(g).connect(ctx.destination); o.start();
+    g.gain.exponentialRampToValueAtTime(.0001, ctx.currentTime + ms / 1000);
+    o.stop(ctx.currentTime + ms / 1000 + .02);
+  }
+  function play(n) {
+    if (n === 'ding') { tone(1318, 180); tone(1760, 120); }
+    if (n === 'pop') tone(523, 120, 'triangle');
+    if (n === 'cheer') [880, 1108, 1318].forEach((f, i) => setTimeout(() => tone(f, 250), i * 120));
+    if (n === 'windchime') [1568, 2093].forEach((f, i) => setTimeout(() => tone(f, 200, 'sine', .08), i * 90));
+  }
+  function say(text) {
+    if (!flags.voice || !('speechSynthesis' in window)) return;
+    const now = Date.now();
+    if (text === lastSay.text && now - lastSay.t < 1500) return;
+    lastSay = { t: now, text };
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = 'zh-CN'; u.rate = .9; u.pitch = 1.3;
+    speechSynthesis.speak(u); // 不可用时浏览器静默
+  }
+  function setFlags(f) { flags = f; }
+  window.addEventListener('pointerdown', init, { once: true });
+  return { play, say, setFlags };
+})();
+/* === AUDIO END === */
+</script>
 </body>
 </html>
