@@ -45,15 +45,72 @@
   .conf { position:absolute; top:-5vh; pointer-events:none; z-index:20; font-size:20px;
     animation:fall 2s linear forwards; }
   @keyframes fall { to{transform:translateY(110vh) rotate(360deg)} }
+  /* === T9 五屏 App（brief CSS 块 + 屏样式，spec§4 线框） === */
+  .big-btn { width:40vw; height:40vw; border-radius:50%; border:none; font-size:24px;
+    background:radial-gradient(circle at 35% 30%,#FFC6DD,#FF7AB6); color:#fff;
+    box-shadow:0 8px 24px rgba(255,122,182,.5); margin:auto; }
+  .breathe { animation:breathe 1.6s ease-in-out infinite; }
+  @keyframes breathe { 50%{transform:scale(1.08);box-shadow:0 0 20px #FFD700} }
+  .node { position:absolute; width:13vw; height:13vw; border-radius:50%; background:#fff;
+    border:3px solid #FFB6D9; display:flex; align-items:center; justify-content:center;
+    font-size:22px; }
+  .node.done { border-color:#FFD700; } .node.locked { opacity:.45; }
+  #teach { position:absolute; inset:0; background:rgba(255,228,240,.75); display:flex;
+    align-items:center; justify-content:center; font-size:22px; color:#B0447A; }
+  .reshuffle { animation:flip .8s; } @keyframes flip { 50%{transform:rotateY(180deg) scale(1.1)} }
+  /* 屏布局 */
+  #scr-open { align-items:center; justify-content:center; gap:9vh; }
+  #scr-open .logo { font-size:26vw; line-height:1; touch-action:none;
+    filter:drop-shadow(0 6px 16px rgba(255,122,182,.45)); }
+  #scr-map .map-area { position:relative; flex:1; }
+  .topbar .back { background:none; border:none; font-size:26px; color:#B0447A;
+    width:44px; height:44px; }
+  .topbar .stars { font-size:16px; color:#B0447A; margin-left:auto; margin-right:12px; }
+  .topbar .hint { background:none; border:none; font-size:26px; width:44px; }
+  .topbar .hint.dim { opacity:.35; pointer-events:none; }
+  .node.current { border-color:#FF7AB6; }
+  .node { color:#B0447A; font-weight:600; }
+  #scr-win { align-items:center; justify-content:center; gap:3vh; }
+  .win-big { font-size:22vw; line-height:1; }
+  .win-text { font-size:32px; color:#B0447A; text-align:center; }
+  .win-sub { font-size:20px; color:#FF7AB6; }
+  #teach { z-index:5; border-radius:16px; transition:opacity .35s; flex-direction:column;
+    gap:2vh; text-align:center; padding:4vw; }
+  #scr-parent { align-items:flex-start; justify-content:center; gap:18px; padding:8vw;
+    color:#B0447A; }
+  #scr-parent h2 { font-size:22px; }
+  #scr-parent .pk-row { font-size:18px; display:flex; align-items:center; gap:10px; }
+  #scr-parent .pk-row input { width:22px; height:22px; accent-color:#FF7AB6; }
+  .pk-btn { font-size:16px; color:#fff; background:#FF7AB6; border:none;
+    border-radius:14px; padding:10px 18px; }
+  .pk-note { font-size:12px; color:#c08aa8; } /* 家长页允许小字（spec§4⑤） */
 </style>
 </head>
 <body>
 <div id="app">
-  <section id="scr-open"></section>
-  <section id="scr-map"></section>
+  <section id="scr-open">
+    <div class="logo" id="logo">🦄</div>
+    <button class="big-btn" id="btn-start">开始玩!</button>
+  </section>
+  <section id="scr-map">
+    <div class="topbar"><button class="back" id="map-back">←</button>
+      <span class="stars"></span></div>
+    <div class="map-area"></div>
+  </section>
   <section id="scr-game"></section>
-  <section id="scr-win"></section>
-  <section id="scr-parent"></section>
+  <section id="scr-win">
+    <div class="win-big">🌈</div>
+    <h1 class="win-text"></h1>
+    <div class="win-sub">☆ 点我继续 ☆</div>
+  </section>
+  <section id="scr-parent">
+    <h2>家长设置</h2>
+    <label class="pk-row"><input type="checkbox" id="pk-sound"> 音效</label>
+    <label class="pk-row"><input type="checkbox" id="pk-voice"> 鼓励语音</label>
+    <button id="pk-reset" class="pk-btn">重置进度</button>
+    <button id="pk-back" class="pk-btn">返回</button>
+    <p class="pk-note">长按 Unicorn 图案 3 秒进入本页。</p>
+  </section>
 </div>
 <script>
 /* === ENGINE START === */
@@ -289,10 +346,10 @@ function markCleared(storage, levelId) {
       s.style.left = Math.random() * 100 + 'vw'; s.style.animationDelay = Math.random() + 's';
       host.appendChild(s); setTimeout(() => s.remove(), 2500); } }
   globalThis.View = {
-    buildGame, renderBoard, cellEl, setSelected, shake, vanish,
+    decorate, buildGame, renderBoard, cellEl, setSelected, shake, vanish,
     dims: () => ({ rows: rowsN, cols: colsN }), // T7 centerOf 用
     centerOf, drawPath, burst, confetti,
-  };
+  }; // decorate T9 增补导出：开场/地图屏也需飘云背景
 })();
 /* === VIEW END === */
 </script>
@@ -336,6 +393,296 @@ const Audio = (() => {
   return { play, say, setFlags };
 })();
 /* === AUDIO END === */
+</script>
+<script>
+/* === APP START === */
+// 五屏状态机：开场/地图/游戏/庆祝/家长。只消费 ENGINE/STORE/VIEW/AUDIO，不改其锚段。
+const PRAISE = ['真棒!', '就是这样!', '好厉害呀!'];
+let praiseCursor = 0;
+
+// 安全存储壳（spec§8 无痕可玩）：getItem/setItem 各包 try，失败回内存 Map。
+// mem 恒镜像写入：某些无痕实现 setItem 抛错但 getItem 静默返回 null，
+// 读时先查 mem 保证本会话进度可见。
+const safeStorage = (() => {
+  const mem = new Map();
+  return {
+    getItem(k) {
+      if (mem.has(k)) return mem.get(k);
+      try { return localStorage.getItem(k); } catch (e) { return null; }
+    },
+    setItem(k, v) {
+      try { localStorage.setItem(k, v); } catch (e) { /* 无痕模式 */ }
+      mem.set(k, v);
+    },
+    removeItem(k) {
+      mem.delete(k);
+      try { localStorage.removeItem(k); } catch (e) { /* 无痕模式 */ }
+    },
+  };
+})();
+
+const $ = s => document.querySelector(s);
+// 地图 9 节点之字形定位表（[left%, top%]，自底向上，spec§4②）
+const MAP_POS = [[10, 84], [13, 71], [15, 58], [56, 48], [20, 38],
+  [24, 26], [44, 18], [62, 10], [76, 2]];
+
+(() => {
+  let level = null, cells = null, rule = null, sel = null, winTimer = null;
+  let teach = null, teachIv = null, resetArmed = false, resetTimer = null;
+
+  const progress = () => loadProgress(safeStorage);
+  const hintLeft = () => level && level.hint
+    ? level.hint - (progress().hintUsed[level.id] || 0) : 0;
+
+  /* 1. 屏幕切换 */
+  function go(name) {
+    document.querySelectorAll('#app > section').forEach(s =>
+      s.classList.toggle('on', s.id === 'scr-' + name));
+    if (name === 'open') {
+      const p = progress();
+      Audio.say(p.cleared.length === 9 ? '你已经是个连连看小高手啦!' : '我们来玩连连看吧!');
+    }
+    if (name === 'map') renderMap();
+    if (name === 'parent') syncParent();
+  }
+
+  /* 2. 地图页（req6）：当前关=max(cleared)+1(≤9)；锁=可点不可进不惩罚 */
+  function renderMap() {
+    const p = progress();
+    const cur = Math.min(9, p.cleared.length ? Math.max(...p.cleared) + 1 : 1);
+    $('#scr-map .stars').textContent = '⭐ ' + p.cleared.length + '/9';
+    const area = $('#scr-map .map-area');
+    area.innerHTML = '';
+    LEVELS.forEach((L, i) => {
+      const done = p.cleared.includes(L.id);
+      const current = L.id === cur && !done;
+      const n = document.createElement('button');
+      n.className = 'node' + (done ? ' done' : current ? ' current breathe' : ' locked');
+      n.style.left = MAP_POS[i][0] + '%'; n.style.top = MAP_POS[i][1] + '%';
+      n.textContent = done ? '⭐' : String(L.id);
+      n.addEventListener('click', () => {
+        if (done || current) startLevel(L.id);
+        else { Audio.play('pop'); Audio.say('先过前面的关卡吧'); } // 不设惩罚锁
+      });
+      area.appendChild(n);
+    });
+  }
+
+  /* 3. 进入关卡 */
+  function startLevel(id) {
+    level = LEVELS[id - 1];
+    const gen = generateBoard(level, Math.random);
+    cells = gen.cells; rule = gen.rule; sel = null;
+    View.buildGame(level);
+    View.renderBoard(cells, tapCell);
+    $('#scr-game .stars').textContent = '第 ' + level.id + ' 关';
+    const hintBtn = $('#scr-game .hint');
+    $('#scr-game .back').addEventListener('click', () => { clearTeach(); go('map'); });
+    if (level.hint) {
+      hintBtn.hidden = false;
+      if (hintLeft() <= 0) hintBtn.classList.add('dim');
+      hintBtn.addEventListener('click', useHint);
+    }
+    go('game');
+    maybeTeach(); // req3：4/7 关一次性教学层
+  }
+
+  /* 4. tapCell 状态机（req1） */
+  function tapCell(rc) {
+    try {
+      if (!level || !cells) return;
+      const { r, c } = rc;
+      if (cells[r][c] == null) return; // 已消除格静默忽略
+      const el = View.cellEl(r, c);
+      if (!sel) {
+        clearGlow(); // 清掉提示灯残留的 .sel/.breathe
+        sel = { r, c }; View.setSelected(el, true); Audio.play('ding');
+        return;
+      }
+      if (sel.r === r && sel.c === c) { View.setSelected(el, false); sel = null; return; }
+      const a = sel, b = { r, c };
+      sel = null;
+      const aEl = View.cellEl(a.r, a.c);
+      View.setSelected(aEl, false); View.setSelected(el, false);
+      const res = attempt(cells, level.rows, level.cols, rule, a, b);
+      if (res.type === 'match') doMatch(a, b, res.path);
+      else { // diff/blocked —— 无失败态铁律（spec§2）：只摇头+泡泡音，无红无✗无分数
+        View.shake(aEl); View.shake(el);
+        Audio.play('pop'); Audio.say('再找一个试试');
+      }
+    } catch (e) { console.error('tapCell', e); if (level) startLevel(level.id); } // spec§8 回初始盘面
+  }
+
+  function doMatch(a, b, path) {
+    View.drawPath(path);
+    cells[a.r][a.c] = null; cells[b.r][b.c] = null;
+    const text = PRAISE[praiseCursor++ % PRAISE.length]; // 全局游标轮换鼓励语
+    setTimeout(() => {
+      const ea = View.cellEl(a.r, a.c), eb = View.cellEl(b.r, b.c);
+      View.vanish(ea); View.vanish(eb); View.burst(ea); View.burst(eb);
+      Audio.say(text);
+      // spec§8 支持才震；userActivation 守卫：无真实用户激活时 Chrome 会报 console error
+      if (navigator.vibrate && (!navigator.userActivation || navigator.userActivation.hasBeenActive))
+        navigator.vibrate(30);
+      if (cells.flat().every(v => v == null)) { win(); return; }
+      if (rule !== 'free' && !hasAvailablePair(cells, level.rows, level.cols, rule)) {
+        // 洗牌救援（req1 尾）：死局自动重摆+翻转动画+救援语音
+        cells = reshuffle(cells, level.rows, level.cols, rule, Math.random);
+        View.renderBoard(cells, tapCell);
+        cells.forEach((row, r) => row.forEach((v, c) => {
+          if (v != null) View.cellEl(r, c).classList.add('reshuffle');
+        }));
+        Audio.say('老师帮你重新摆好啦，继续!');
+        Audio.play('windchime');
+      }
+    }, 400);
+  }
+
+  /* 5. 过关庆祝（req2）：3s 自动推进；点击立即 */
+  function advance() {
+    clearTimeout(winTimer); winTimer = null;
+    // 仅当庆祝页仍在展示才推进：防 3s 定时器与迟到点击双触发跳关
+    if (!level || !$('#scr-win').classList.contains('on')) return;
+    if (level.id >= 9) { level = null; go('open'); } // 9 关后回开场（语音已换高手版）
+    else startLevel(level.id + 1);
+  }
+  function win() {
+    if ($('#scr-win').classList.contains('on')) return; // 并发末对双触发防重
+    markCleared(safeStorage, level.id);
+    go('win'); // 先切 .on 再撒花（confetti 写入 #scr-win）
+    $('#scr-win .win-text').textContent = '太棒啦!第' + level.id + '关完成!';
+    View.confetti();
+    Audio.play('cheer');
+    Audio.say('太棒啦!第' + level.id + '关完成!');
+    clearTimeout(winTimer);
+    winTimer = setTimeout(advance, 3000);
+  }
+
+  /* 6. 新规则教学层（req3）：4/7 关各一次，hintUsed 记 taught:4/7 */
+  const TEACH_LINE = { 4: '这次要找能连成线的哦', 7: '线最多拐两个弯!' };
+  function clearGlow() {
+    document.querySelectorAll('#board .card.breathe').forEach(x =>
+      x.classList.remove('sel', 'breathe'));
+  }
+  function clearTeach() {
+    if (teachIv) { clearInterval(teachIv); teachIv = null; }
+    if (teach) { teach.remove(); teach = null; }
+    const svg = $('#lines'); if (svg) svg.innerHTML = '';
+    clearGlow();
+  }
+  function maybeTeach() {
+    if (level.id !== 4 && level.id !== 7) return;
+    const key = 'taught:' + level.id, p = progress();
+    if (p.hintUsed[key]) return;
+    p.hintUsed[key] = 1; saveProgress(safeStorage, p); // 先落盘：重进不再弹
+    teach = document.createElement('div');
+    teach.id = 'teach';
+    teach.innerHTML = '<div>' + TEACH_LINE[level.id] + '</div>' +
+      '<div style="font-size:16px">（点击跳过）</div>';
+    $('#board-wrap').appendChild(teach);
+    const pair = findHint(cells, level.rows, level.cols, rule);
+    if (pair) { // 演示：高亮一对+示例彩虹线循环流动
+      const res = attempt(cells, level.rows, level.cols, rule, pair[0], pair[1]);
+      pair.forEach(pt => {
+        const el = View.cellEl(pt.r, pt.c);
+        el.classList.add('sel', 'breathe');
+      });
+      teachIv = setInterval(() => View.drawPath(res.path), 520);
+      View.drawPath(res.path);
+    }
+    Audio.say(TEACH_LINE[level.id]);
+    teach.addEventListener('click', fadeTeach); // 3s 自动或点击淡出
+    setTimeout(fadeTeach, 3000);
+  }
+  function fadeTeach() {
+    if (!teach) return;
+    const t = teach; teach = null;
+    if (teachIv) { clearInterval(teachIv); teachIv = null; }
+    t.style.opacity = '0';
+    setTimeout(() => { t.remove(); }, 360);
+    const svg = $('#lines'); if (svg) svg.innerHTML = '';
+    clearGlow();
+  }
+
+  /* 7. 提示灯（req4，7-9 关）：一次性，用后置灰 */
+  function useHint() {
+    try {
+      if (!level || !level.hint || hintLeft() <= 0) return;
+      const pair = findHint(cells, level.rows, level.cols, rule);
+      if (!pair) return;
+      pair.forEach(pt => {
+        const el = View.cellEl(pt.r, pt.c);
+        el.classList.add('sel', 'breathe');
+      });
+      const p = progress();
+      p.hintUsed[level.id] = (p.hintUsed[level.id] || 0) + 1;
+      saveProgress(safeStorage, p);
+      $('#scr-game .hint').classList.add('dim'); // 用完 💡 置灰
+      Audio.play('windchime');
+    } catch (e) { console.error('useHint', e); }
+  }
+
+  /* 8. 家长门（req5）：Logo 长按 3s；pointermove>10px 或提前抬起即取消 */
+  function wireParentGate() {
+    const logo = $('#logo');
+    let timer = null, sx = 0, sy = 0;
+    const cancel = () => { if (timer) { clearTimeout(timer); timer = null; } };
+    logo.addEventListener('contextmenu', e => e.preventDefault());
+    logo.addEventListener('pointerdown', e => {
+      sx = e.clientX; sy = e.clientY; cancel();
+      timer = setTimeout(() => { timer = null; go('parent'); }, 3000);
+    });
+    logo.addEventListener('pointermove', e => {
+      if (timer && (Math.abs(e.clientX - sx) > 10 || Math.abs(e.clientY - sy) > 10)) cancel();
+    });
+    logo.addEventListener('pointerup', cancel);
+    logo.addEventListener('pointercancel', cancel);
+  }
+  function setFlag(which, val) {
+    const p = progress();
+    p[which] = val; saveProgress(safeStorage, p);
+    Audio.setFlags({ sound: p.sound, voice: p.voice }); // 两键恒齐传
+  }
+  function syncParent() {
+    const p = progress();
+    $('#pk-sound').checked = p.sound;
+    $('#pk-voice').checked = p.voice;
+    Audio.setFlags({ sound: p.sound, voice: p.voice });
+  }
+  function wireParentPage() {
+    $('#pk-sound').addEventListener('change', e => setFlag('sound', e.target.checked));
+    $('#pk-voice').addEventListener('change', e => setFlag('voice', e.target.checked));
+    $('#pk-back').addEventListener('click', () => go('open'));
+    const btn = $('#pk-reset');
+    btn.addEventListener('click', () => { // 二次确认：连点两次才清
+      if (!resetArmed) {
+        resetArmed = true; btn.textContent = '确认清除全部进度?';
+        clearTimeout(resetTimer);
+        resetTimer = setTimeout(() => { resetArmed = false; btn.textContent = '重置进度'; }, 3000);
+        return;
+      }
+      clearTimeout(resetTimer); resetArmed = false; btn.textContent = '重置进度';
+      safeStorage.removeItem(STORE_KEY);
+      go('open');
+    });
+  }
+
+  /* 9. 装配 */
+  function init() {
+    View.decorate();
+    const p = progress();
+    Audio.setFlags({ sound: p.sound, voice: p.voice });
+    $('#btn-start').addEventListener('click', () => go('map'));
+    $('#map-back').addEventListener('click', () => go('open'));
+    $('#scr-win').addEventListener('click', advance); // 庆祝页点击即推进
+    wireParentGate(); wireParentPage();
+    go('open');
+  }
+  globalThis.App = { go, startLevel, tapCell, win, useHint };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
+})();
+/* === APP END === */
 </script>
 </body>
 </html>
