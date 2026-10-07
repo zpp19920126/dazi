@@ -40,7 +40,54 @@ const LEVELS = [
   { id:8, rows:5, cols:6, kinds:10, rule:'classic', hint:1 },
   { id:9, rows:5, cols:6, kinds:10, rule:'classic', hint:1 },
 ];
-function findPath(){ return null; } function generateBoard(){ return null; }
+function findPath(rows, cols, alive, a, b, maxTurns) {
+  const DIRS = [[-1,0],[1,0],[0,-1],[0,1]];
+  const key = (r,c) => r + ',' + c;
+  const canPass = (r,c) => {
+    if (r < -1 || r > rows || c < -1 || c > cols) return false;      // 只允许一圈虚拟外圈
+    if (r === b.r && c === b.c) return true;                          // 终点卡可进入
+    if (r < 0 || r >= rows || c < 0 || c >= cols) return true;        // 外圈恒空
+    return !alive(r,c);
+  };
+  const parent = new Map([[key(a.r,a.c), null]]);
+  let frontier = [[a.r, a.c, -1]];
+  for (let turn = 0; turn <= maxTurns && frontier.length; turn++) {
+    const next = [];
+    for (const [r0,c0,d0] of frontier) {
+      for (let d = 0; d < 4; d++) {
+        if (d0 >= 0 && (d === d0 || d === (d0 ^ 1))) continue; // 直线已在射线内覆盖；不走回头（DIRS 中相对方向相邻，反向 = d0^1 而非 (d0+2)%4）
+        let r = r0, c = c0;
+        while (canPass(r + DIRS[d][0], c + DIRS[d][1])) {
+          r += DIRS[d][0]; c += DIRS[d][1];
+          const k = key(r,c);
+          if (!parent.has(k)) {
+            parent.set(k, [r0, c0]); // 折点记录线段起点，重建后压缩共线
+            if (!(r === b.r && c === b.c)) next.push([r, c, d]);
+          }
+          if (r === b.r && c === b.c) break;
+        }
+      }
+    }
+    frontier = next;
+  }
+  if (!parent.has(key(b.r,b.c))) return null;
+  const pts = []; // 从b回溯到a
+  let cur = [b.r,b.c];
+  while (cur) { pts.push({ r:cur[0], c:cur[1] });
+    const p = parent.get(key(cur[0],cur[1])); cur = p; }
+  pts.reverse();
+  // 等距射线重建：parent记的是线段起点，两点间还需展开直线中间点吗？不需要——view只需折线顶点
+  const out = []; // 共线压缩
+  for (const p of pts) {
+    const n = out.length;
+    if (n >= 2) { const [a1,a2] = [out[n-2],out[n-1]];
+      const collinear = (a1.r===a2.r && a2.r===p.r) || (a1.c===a2.c && a2.c===p.c);
+      if (collinear) { out[n-1] = p; continue; } }
+    out.push(p);
+  }
+  return out;
+}
+function generateBoard(){ return null; }
 function hasAvailablePair(){ return false; } function findHint(){ return null; }
 function reshuffle(){ return null; } function attempt(){ return null; }
 /* === ENGINE END === */
