@@ -428,6 +428,7 @@ const MAP_POS = [[10, 84], [13, 71], [15, 58], [56, 48], [20, 38],
 (() => {
   let level = null, cells = null, rule = null, sel = null, winTimer = null;
   let teach = null, teachIv = null, resetArmed = false, resetTimer = null;
+  let epoch = 0; // doMatch 延迟回调据此丢弃已重建棋盘的旧动画（防误隐新盘同坐标活卡）
 
   const progress = () => loadProgress(safeStorage);
   const hintLeft = () => level && level.hint
@@ -469,6 +470,7 @@ const MAP_POS = [[10, 84], [13, 71], [15, 58], [56, 48], [20, 38],
 
   /* 3. 进入关卡 */
   function startLevel(id) {
+    epoch++;
     level = LEVELS[id - 1];
     const gen = generateBoard(level, Math.random);
     cells = gen.cells; rule = gen.rule; sel = null;
@@ -516,7 +518,9 @@ const MAP_POS = [[10, 84], [13, 71], [15, 58], [56, 48], [20, 38],
     View.drawPath(path);
     cells[a.r][a.c] = null; cells[b.r][b.c] = null;
     const text = PRAISE[praiseCursor++ % PRAISE.length]; // 全局游标轮换鼓励语
+    const ep = epoch;
     setTimeout(() => {
+      if (ep !== epoch) return; // 棋盘已重建（退出重进/换关），旧动画作废
       const ea = View.cellEl(a.r, a.c), eb = View.cellEl(b.r, b.c);
       View.vanish(ea); View.vanish(eb); View.burst(ea); View.burst(eb);
       Audio.say(text);
