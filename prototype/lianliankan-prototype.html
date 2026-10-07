@@ -23,7 +23,7 @@
   #scr-game { padding:2vw; }
   .topbar { display:flex; align-items:center; height:6vh; font-size:16px; }
   #board-wrap { position:relative; flex:1; display:flex; align-items:center; justify-content:center; }
-  #board { display:grid; gap:var(--gap,2.5vw); width:100%; max-width:92vw;
+  #board { display:grid; gap:var(--gap,2.5vw); width:100%; max-width:var(--maxw,92vw);
     grid-template-columns:repeat(var(--cols),1fr); }
   .card { aspect-ratio:1; background:#fff; border:2px solid #FFB6D9; border-radius:22%;
     box-shadow:0 4px 12px rgba(255,150,200,.35); display:flex; align-items:center;
@@ -217,7 +217,8 @@ function markCleared(storage, levelId) {
     const b = $('#board');
     rowsN = level.rows; colsN = level.cols;
     b.style.setProperty('--cols', colsN);
-    b.style.setProperty('--gap', (colsN <= 5 ? 2.5 : 1.5) + 'vw'); // spec§4③ 宽网格收窄gap保卡宽
+    b.style.setProperty('--gap', (colsN <= 5 ? 2.5 : 1) + 'vw'); // spec§4③ 宽网格收窄gap保卡宽
+    if (colsN >= 6) b.style.setProperty('--maxw', '96vw'); // spec§4③ 6列时保卡片≥15%屏宽
     return b;
   }
   function renderBoard(cells, onTap) {
