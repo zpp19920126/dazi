@@ -35,6 +35,16 @@
   .card.pop { animation:pop .35s forwards; }
   @keyframes pop { 60%{transform:scale(1.2);opacity:1} 100%{transform:scale(0);opacity:0} }
   #lines { position:absolute; inset:0; pointer-events:none; }
+  /* === T7 彩虹连线 / 粒子 === */
+  .flow { stroke-dasharray:12 8; animation:dash .4s linear; }
+  @keyframes dash { from{stroke-dashoffset:20} to{stroke-dashoffset:0} }
+  .spark { position:fixed; font-size:18px; pointer-events:none; z-index:20;
+    animation:fly .6s forwards; }
+  @keyframes fly { to{transform:translate(var(--dx),var(--dy));opacity:0} }
+  #scr-win { position:relative; overflow:hidden; }
+  .conf { position:absolute; top:-5vh; pointer-events:none; z-index:20; font-size:20px;
+    animation:fall 2s linear forwards; }
+  @keyframes fall { to{transform:translateY(110vh) rotate(360deg)} }
 </style>
 </head>
 <body>
@@ -239,9 +249,49 @@ function markCleared(storage, levelId) {
     el.classList.add('shake'); };
   const vanish = el => { el.classList.add('pop'); setTimeout(
     () => { el.style.visibility = 'hidden'; el.classList.remove('pop'); }, 350); };
+  // === T7 彩虹连线 / 星星粒子 / 撒花 ===
+  function centerOf(p) {
+    const bRect = $('#board').getBoundingClientRect(), one = bRect.width / colsN;
+    // 外圈(-1/rows/cols)clamp到板外沿附近，避免绕行点被viewBox裁切
+    const clamp = (v, max) => Math.max(-0.4, Math.min(max + 0.4, v));
+    return { x: (clamp(p.c, colsN - 1) + 0.5) * one,
+      y: (clamp(p.r, rowsN - 1) + 0.5) * one };
+  }
+  function drawPath(path) {
+    const svg = $('#lines'), b = $('#board');
+    svg.setAttribute('viewBox', `0 0 ${b.clientWidth} ${b.clientHeight}`);
+    // #lines 定位从 wrap 内 inset:0 收缩到与 #board 精确重合（board 居中于 wrap，
+    // 若铺满 wrap 则 viewBox 与坐标错位）
+    svg.style.left = b.offsetLeft + 'px'; svg.style.top = b.offsetTop + 'px';
+    svg.style.width = b.clientWidth + 'px'; svg.style.height = b.clientHeight + 'px';
+    const pts = path.map(centerOf).map(p => `${p.x},${p.y}`).join(' ');
+    // userSpaceOnUse：直线（竖直/水平）bbox 一边为0，objectBoundingBox 渐变按SVG规范
+    // 不渲染（线不可见）；改用用户坐标横跨棋盘宽度，spec 三色不变。
+    const grad = `<defs><linearGradient id="rg" gradientUnits="userSpaceOnUse"
+      x1="0" x2="${b.clientWidth}">
+      <stop offset="0" stop-color="#FF7AB6"/><stop offset=".5" stop-color="#FFD700"/>
+      <stop offset="1" stop-color="#8ED6FF"/></linearGradient></defs>`;
+    svg.innerHTML = grad + `<polyline points="${pts}" fill="none" stroke="url(#rg)"
+      stroke-width="3" stroke-linecap="round" stroke-linejoin="round"
+      class="flow"/>`;
+    setTimeout(() => svg.innerHTML = '', 420);
+  }
+  function burst(el) { const b = el.getBoundingClientRect(), host = $('#app');
+    for (let i = 0; i < 6; i++) { const s = document.createElement('span');
+      s.className = 'spark'; s.textContent = '⭐';
+      s.style.left = b.left + b.width / 2 + 'px'; s.style.top = b.top + b.height / 2 + 'px';
+      s.style.setProperty('--dx', (Math.random() * 80 - 40) + 'px');
+      s.style.setProperty('--dy', (Math.random() * -80 - 10) + 'px');
+      host.appendChild(s); setTimeout(() => s.remove(), 600); } }
+  function confetti() { const host = $('#scr-win');
+    for (let i = 0; i < 40; i++) { const s = document.createElement('span');
+      s.className = 'conf'; s.textContent = ['🎉','✨','🌸','💗'][i % 4];
+      s.style.left = Math.random() * 100 + 'vw'; s.style.animationDelay = Math.random() + 's';
+      host.appendChild(s); setTimeout(() => s.remove(), 2500); } }
   globalThis.View = {
     buildGame, renderBoard, cellEl, setSelected, shake, vanish,
     dims: () => ({ rows: rowsN, cols: colsN }), // T7 centerOf 用
+    centerOf, drawPath, burst, confetti,
   };
 })();
 /* === VIEW END === */
