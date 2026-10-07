@@ -15,6 +15,26 @@
     env(safe-area-inset-bottom) env(safe-area-inset-left); }
   section { display:none; height:100%; }
   section.on { display:flex; flex-direction:column; }
+  /* === VIEW 视觉基座（T6，spec§4/§6） === */
+  .bg-deco { position:fixed; inset:0; pointer-events:none; overflow:hidden; }
+  .cloud { position:absolute; width:26vw; height:10vw; border-radius:50%;
+    background:rgba(255,255,255,.5); animation:drift 60s linear infinite; }
+  @keyframes drift { from{transform:translateX(-30vw)} to{transform:translateX(110vw)} }
+  #scr-game { padding:2vw; }
+  .topbar { display:flex; align-items:center; height:6vh; font-size:16px; }
+  #board-wrap { position:relative; flex:1; display:flex; align-items:center; justify-content:center; }
+  #board { display:grid; gap:var(--gap,2.5vw); width:100%; max-width:92vw;
+    grid-template-columns:repeat(var(--cols),1fr); }
+  .card { aspect-ratio:1; background:#fff; border:2px solid #FFB6D9; border-radius:22%;
+    box-shadow:0 4px 12px rgba(255,150,200,.35); display:flex; align-items:center;
+    justify-content:center; font-size:clamp(28px,9vw,64px); transition:transform .15s; }
+  .card.sel { border-color:#FFD700; box-shadow:0 0 16px #FFD700; transform:scale(1.15); }
+  .card.shake { animation:shake .4s; }
+  @keyframes shake { 0%,100%{transform:rotate(0)} 25%{transform:rotate(-6deg)}
+    75%{transform:rotate(6deg)} }
+  .card.pop { animation:pop .35s forwards; }
+  @keyframes pop { 60%{transform:scale(1.2);opacity:1} 100%{transform:scale(0);opacity:0} }
+  #lines { position:absolute; inset:0; pointer-events:none; }
 </style>
 </head>
 <body>
@@ -168,6 +188,62 @@ function markCleared(storage, levelId) {
   saveProgress(storage, p); return p;
 }
 /* === STORE END === */
+</script>
+<script>
+/* === VIEW START === */
+// VIEW：视觉基座 + 棋盘网格渲染（纯 DOM/CSS，无游戏流；T7/T9 在此扩展）
+(() => {
+  const $ = s => document.querySelector(s);
+  let rowsN = 0, colsN = 0; // T7 centerOf 需要：buildGame 时记录的棋盘维度
+  function decorate() { // 背景飘云（幂等；.bg-deco 为 fixed+pointer-events:none，不挡交互）
+    if (document.querySelector('.bg-deco')) return;
+    const deco = document.createElement('div');
+    deco.className = 'bg-deco';
+    [[6, 0], [18, -22], [42, -45], [70, -10]].forEach(([topVh, delayS]) => {
+      const c = document.createElement('div');
+      c.className = 'cloud';
+      c.style.top = topVh + 'vh';
+      c.style.animationDelay = delayS + 's';
+      deco.appendChild(c);
+    });
+    document.body.appendChild(deco);
+  }
+  function buildGame(level) {
+    decorate();
+    $('#scr-game').innerHTML = `
+      <div class="topbar"><button class="back">←</button>
+        <span class="stars"></span><button class="hint" hidden>💡</button></div>
+      <div id="board-wrap"><div id="board"></div><svg id="lines"></svg></div>`;
+    const b = $('#board');
+    rowsN = level.rows; colsN = level.cols;
+    b.style.setProperty('--cols', colsN);
+    b.style.setProperty('--gap', (colsN <= 5 ? 2.5 : 1.5) + 'vw'); // spec§4③ 宽网格收窄gap保卡宽
+    return b;
+  }
+  function renderBoard(cells, onTap) {
+    const b = $('#board'); b.innerHTML = '';
+    cells.forEach((row, r) => row.forEach((v, c) => {
+      const d = document.createElement('div');
+      d.className = 'card'; d.dataset.r = r; d.dataset.c = c;
+      d.textContent = v == null ? '' : POOL[v];
+      if (v == null) { d.style.visibility = 'hidden'; }
+      d.addEventListener('pointerdown', () => onTap({ r, c }));
+      b.appendChild(d);
+    }));
+  }
+  const cellEl = (r, c) => document.querySelector(
+    `#board .card[data-r="${r}"][data-c="${c}"]`);
+  const setSelected = (el, on) => el && el.classList.toggle('sel', on);
+  const shake = el => { el.classList.remove('shake'); void el.offsetWidth;
+    el.classList.add('shake'); };
+  const vanish = el => { el.classList.add('pop'); setTimeout(
+    () => { el.style.visibility = 'hidden'; el.classList.remove('pop'); }, 350); };
+  globalThis.View = {
+    buildGame, renderBoard, cellEl, setSelected, shake, vanish,
+    dims: () => ({ rows: rowsN, cols: colsN }), // T7 centerOf 用
+  };
+})();
+/* === VIEW END === */
 </script>
 </body>
 </html>
