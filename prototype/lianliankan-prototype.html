@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1,
+  user-scalable=no, viewport-fit=cover">
+<title>连连看小公主</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-user-select:none;
+      user-select:none; -webkit-tap-highlight-color:transparent; }
+  html,body { height:100%; touch-action:manipulation; overscroll-behavior:none; }
+  body { font-family:-apple-system,"PingFang SC","Hiragino Sans GB",sans-serif;
+    background:linear-gradient(180deg,#FFE4F0,#F3E8FF); overflow:hidden; }
+  #app { height:100dvh; padding:env(safe-area-inset-top) env(safe-area-inset-right)
+    env(safe-area-inset-bottom) env(safe-area-inset-left); }
+  section { display:none; height:100%; }
+  section.on { display:flex; flex-direction:column; }
+</style>
+</head>
+<body>
+<div id="app">
+  <section id="scr-open"></section>
+  <section id="scr-map"></section>
+  <section id="scr-game"></section>
+  <section id="scr-win"></section>
+  <section id="scr-parent"></section>
+</div>
+<script>
+/* === ENGINE START === */
+const POOL = ['🦄','🐰','🐱','🦊','🐼','🌈','⭐','🎀','🍓','🧁','🍭','🌸'];
+const MAXTURNS = { free:null, oneTurn:1, classic:2 };
+const LEVELS = [
+  { id:1, rows:3, cols:4, kinds:4,  rule:'free' },
+  { id:2, rows:3, cols:4, kinds:5,  rule:'free' },
+  { id:3, rows:4, cols:4, kinds:6,  rule:'free' },
+  { id:4, rows:4, cols:4, kinds:6,  rule:'oneTurn' },
+  { id:5, rows:4, cols:5, kinds:7,  rule:'oneTurn' },
+  { id:6, rows:4, cols:5, kinds:8,  rule:'oneTurn' },
+  { id:7, rows:4, cols:6, kinds:9,  rule:'classic', hint:1 },
+  { id:8, rows:5, cols:6, kinds:10, rule:'classic', hint:1 },
+  { id:9, rows:5, cols:6, kinds:10, rule:'classic', hint:1 },
+];
+function findPath(){ return null; } function generateBoard(){ return null; }
+function hasAvailablePair(){ return false; } function findHint(){ return null; }
+function reshuffle(){ return null; } function attempt(){ return null; }
+/* === ENGINE END === */
+/* === STORE START === */
+const STORE_KEY = 'llk-toddler-v1';
+function loadProgress(){ return { cleared:[], sound:true, voice:true, hintUsed:{} }; }
+function saveProgress(){} function markCleared(){}
+/* === STORE END === */
+</script>
+</body>
+</html>

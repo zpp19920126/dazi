@@ -7,3 +7,4 @@ web/dist/
 *.log
 *.tsbuildinfo
 server/uploads/
+prototype/.test/
