@@ -51,3 +51,58 @@ test('findPath 完全堵死返回null', () => {
   const { alive, rows, cols } = mk(2, 4, on.concat([[1,3]]));
   assert.equal(findPath(rows, cols, alive, {r:0,c:0}, {r:1,c:2}, 2), null);
 });
+
+import { generateBoard, hasAvailablePair, findHint, reshuffle } from '../.test/engine.mjs';
+
+function mulberry32(seed) { return function() {
+  seed |= 0; seed = seed + 0x6D2B79F5 | 0;
+  let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+  t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+  return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+
+const countKinds = cells => { const m = {};
+  for (const row of cells) for (const v of row) if (v != null) m[v] = (m[v]||0)+1; return m; };
+
+test('generateBoard：格数图案成偶、种类不超level.kinds', () => {
+  for (const level of LEVELS) {
+    const { cells } = generateBoard(level, mulberry32(level.id));
+    const m = countKinds(cells);
+    for (const v of Object.values(m)) assert.equal(v % 2, 0);
+    assert.ok(Object.keys(m).length <= level.kinds);
+  }
+});
+
+test('generateBoard：一开局必存在可消对（每关型跑100次）', () => {
+  for (const level of LEVELS) for (let i = 0; i < 100; i++) {
+    const g = generateBoard(level, mulberry32(level.id * 1000 + i));
+    assert.ok(hasAvailablePair(g.cells, level.rows, level.cols, g.rule),
+      `第${level.id}关 seed=${i} 死局开局`);
+  }
+});
+
+test('hasAvailablePair：free档只看图案；classic档要看路径', () => {
+  const cells = [[0, null, 1, 0], [1, null, null, 1]];
+  // 图案0在(0,0)与(0,3)：直线被(0,2)的1挡住，但经虚拟外圈2转弯可连
+  assert.ok(hasAvailablePair(cells, 2, 4, 'free'));
+  assert.ok(hasAvailablePair(cells, 2, 4, 'classic'));
+  const dead = [[0, 1], [1, 0]]; // free档只看图案相同即可，(0,0)-(1,1)成对
+  assert.ok(hasAvailablePair(dead, 2, 2, 'free'));
+});
+
+test('reshuffle：保留存活位置与图案集合，且新局有解', () => {
+  const level = LEVELS[5]; // 4×5 oneTurn
+  const { cells } = generateBoard(level, mulberry32(7));
+  cells[0][0] = null; cells[0][1] = null; // 模拟已消一对
+  const shuffled = reshuffle(cells, level.rows, level.cols, 'oneTurn', mulberry32(9));
+  const before = countKinds(cells), after = countKinds(shuffled);
+  assert.deepEqual(before, after); // 图案multiset不变
+  for (let r = 0; r < level.rows; r++) for (let c = 0; c < level.cols; c++)
+    assert.equal((shuffled[r][c] == null) , (cells[r][c] == null)); // 空位形状不变
+  assert.ok(hasAvailablePair(shuffled, level.rows, level.cols, 'oneTurn'));
+});
+
+test('findHint 与 hasAvailablePair 同结果', () => {
+  const level = LEVELS[7]; const g = generateBoard(level, mulberry32(3));
+  assert.deepEqual(findHint(g.cells, level.rows, level.cols, g.rule),
+    hasAvailablePair(g.cells, level.rows, level.cols, g.rule));
+});

@@ -87,9 +87,58 @@ function findPath(rows, cols, alive, a, b, maxTurns) {
   }
   return out;
 }
-function generateBoard(){ return null; }
-function hasAvailablePair(){ return false; } function findHint(){ return null; }
-function reshuffle(){ return null; } function attempt(){ return null; }
+function aliveFn(cells) { return (r,c) => cells[r][c] != null; }
+function pairsOf(cells, rows, cols) {
+  const byKind = new Map();
+  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+    const v = cells[r][c]; if (v == null) continue;
+    if (!byKind.has(v)) byKind.set(v, []); byKind.get(v).push({ r, c });
+  }
+  const pairs = [];
+  for (const list of byKind.values())
+    for (let i = 0; i < list.length; i++) for (let j = i + 1; j < list.length; j++)
+      pairs.push([list[i], list[j]]);
+  return pairs;
+}
+function hasAvailablePair(cells, rows, cols, rule) {
+  if (rule === 'free') { const p = pairsOf(cells, rows, cols); return p[0] || null; }
+  const mt = MAXTURNS[rule], alive = aliveFn(cells);
+  for (const [a, b] of pairsOf(cells, rows, cols))
+    if (findPath(rows, cols, alive, a, b, mt)) return [a, b];
+  return null;
+}
+const findHint = hasAvailablePair;
+function shuffleArr(arr, rand) {
+  for (let i = arr.length - 1; i > 0; i--) { const j = Math.floor(rand() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]]; } return arr;
+}
+function generateBoard(level, rand) {
+  const pool = shuffleArr([...POOL.keys()], rand).slice(0, level.kinds);
+  const total = level.rows * level.cols, bag = [];
+  for (let i = 0; i < total / 2; i++) { const k = pool[i % pool.length]; bag.push(k, k); }
+  for (let t = 0; t <= 50; t++) {
+    shuffleArr(bag, rand);
+    const g = Array.from({ length: level.rows }, (_, r) =>
+      bag.slice(r * level.cols, (r + 1) * level.cols));
+    let rule = level.rule;
+    if (t === 50) rule = 'free'; // spec§8 降级：不再校验可解性
+    else if (rule !== 'free' && !hasAvailablePair(g, level.rows, level.cols, rule)) continue;
+    return { cells: g, rule, degraded: t === 50 };
+  }
+}
+function reshuffle(cells, rows, cols, rule, rand) {
+  const pos = [], vals = [];
+  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++)
+    if (cells[r][c] != null) { pos.push([r, c]); vals.push(cells[r][c]); }
+  for (let t = 0; t <= 50; t++) {
+    shuffleArr(vals, rand);
+    const g = cells.map(row => row.map(() => null));
+    pos.forEach(([r, c], i) => { g[r][c] = vals[i]; });
+    if (rule === 'free' || hasAvailablePair(g, rows, cols, rule)) return g;
+  }
+  return cells; // 理论上到不了：free保底已在循环内；全失败则原样返回由view静默重试
+}
+function attempt(){ return null; }
 /* === ENGINE END === */
 /* === STORE START === */
 const STORE_KEY = 'llk-toddler-v1';
